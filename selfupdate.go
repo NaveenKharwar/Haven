@@ -142,14 +142,6 @@ func (u *SelfUpdate) supported() (bool, string) {
 	return true, ""
 }
 
-func (u *SelfUpdate) token() string {
-	b, err := os.ReadFile(filepath.Join(u.dir, "github-token"))
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(b))
-}
-
 func (u *SelfUpdate) get(ctx context.Context, url, accept string, limit int64) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -158,9 +150,6 @@ func (u *SelfUpdate) get(ctx context.Context, url, accept string, limit int64) (
 	req.Header.Set("Accept", accept)
 	req.Header.Set("User-Agent", "haven/"+Version)
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-	if t := u.token(); t != "" {
-		req.Header.Set("Authorization", "Bearer "+t)
-	}
 	resp, err := u.client.Do(req)
 	if err != nil {
 		return nil, err

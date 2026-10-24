@@ -2,6 +2,10 @@
 
 Each release's notes come from its section here. Add a `## <version>` section before you tag. If there is none, the release notes list the commit titles since the last release.
 
+## 0.1.23
+
+- Removed the unused option to read a GitHub token from the data folder. It was only needed while the repository was private, and Haven now asks GitHub for public releases only.
+
 ## 0.1.22
 
 - Fixed the one-line installer from 0.1.21, which refused to run with "this copy of get.sh was not published by a release". The release step filled in the repository name in the check as well as in the setting. The installer's tests now run that same step.
