@@ -375,7 +375,10 @@ func (u *SelfUpdate) assetURL(rel *ReleaseInfo, name string) (string, error) {
 		return "", fmt.Errorf("this release has no %s file", name)
 	}
 	// Only ever fetch from this repository's release assets on GitHub.
-	if !strings.HasPrefix(url, u.api+"/repos/"+u.repo+"/releases/assets/") {
+	// GitHub ignores capitals in repository names and answers with the name as the
+	// owner wrote it, so compare without regard to case.
+	prefix := u.api + "/repos/" + u.repo + "/releases/assets/"
+	if len(url) < len(prefix) || !strings.EqualFold(url[:len(prefix)], prefix) {
 		return "", errors.New("the release points somewhere unexpected; refusing to download")
 	}
 	return url, nil

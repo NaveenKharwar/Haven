@@ -1560,3 +1560,14 @@ func TestFaviconRouteOnlyServesConfiguredLinks(t *testing.T) {
 		t.Errorf("a guest must not reach it: got %d", code)
 	}
 }
+
+func TestAssetURLIgnoresRepoCase(t *testing.T) {
+	u := &SelfUpdate{repo: "NaveenKharwar/haven", api: githubAPI}
+	rel := &ReleaseInfo{assets: map[string]string{"a": githubAPI + "/repos/NaveenKharwar/Haven/releases/assets/1", "b": githubAPI + "/repos/Someone/else/releases/assets/1"}}
+	if _, err := u.assetURL(rel, "a"); err != nil {
+		t.Fatalf("same repo, different case was refused: %v", err)
+	}
+	if _, err := u.assetURL(rel, "b"); err == nil {
+		t.Fatal("another repository was accepted")
+	}
+}
