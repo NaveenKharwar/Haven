@@ -1,0 +1,39 @@
+id: ntfy
+name: ntfy
+category: Monitoring
+tagline: "Send notifications to your phone from anything"
+description: "A simple push-notification service. Send a message with a web request or a script, and it pops up on your phone or computer."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/ntfy.png
+website: https://ntfy.sh
+version: "v2.33.1"
+archs: [amd64, arm64]
+notes: "Phones outside your home need the remote-access (Tailscale) address instead of the local one."
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8089"
+    required: true
+  - key: BASE_HOST
+    label: Server address
+    type: string
+    required: true
+    prefill: host
+    description: The address phones use to reach this server, for example 192.168.1.10.
+compose: |
+  services:
+    ntfy:
+      image: binwiederhier/ntfy:v2.33.1
+      restart: unless-stopped
+      command: serve
+      ports:
+        - "${WEB_PORT}:80"
+      volumes:
+        - ${APP_DATA}/cache:/var/cache/ntfy
+        - ${APP_DATA}/etc:/etc/ntfy
+      environment:
+        TZ: ${TZ}
+        NTFY_BASE_URL: http://${BASE_HOST}:${WEB_PORT}
+        NTFY_CACHE_FILE: /var/cache/ntfy/cache.db
+        NTFY_ATTACHMENT_CACHE_DIR: /var/cache/ntfy/attachments

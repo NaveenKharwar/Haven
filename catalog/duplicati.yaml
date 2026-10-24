@@ -1,0 +1,50 @@
+id: duplicati
+name: Duplicati
+category: Backup
+tagline: "Encrypted backups to anywhere"
+description: "Schedule encrypted, compressed backups of your folders to another disk, a NAS or the cloud."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/duplicati.png
+website: https://duplicati.com
+version: "latest"
+archs: [amd64, arm64]
+notes: "Keep a copy of the settings key somewhere safe; Duplicati needs it to read its own settings."
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8200"
+    required: true
+  - key: SOURCE_PATH
+    label: Folder to back up
+    type: path
+    default: /opt/haven
+    required: true
+    description: Mounted read-only at /source. The default backs up Haven and all its apps' data.
+  - key: BACKUP_PATH
+    label: Backup destination
+    type: path
+    default: /srv/backups
+    required: true
+    description: Mounted at /backups. Use a different disk if you can.
+  - key: ENC_KEY
+    label: Settings key
+    type: password
+    generate: true
+    description: Leave empty to generate a strong one.
+compose: |
+  services:
+    duplicati:
+      image: lscr.io/linuxserver/duplicati:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8200"
+      volumes:
+        - ${APP_DATA}/config:/config
+        - ${BACKUP_PATH}:/backups
+        - ${SOURCE_PATH}:/source:ro
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}
+        SETTINGS_ENCRYPTION_KEY: ${ENC_KEY}

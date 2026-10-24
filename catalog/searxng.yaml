@@ -1,0 +1,45 @@
+id: searxng
+name: SearXNG
+category: Network
+tagline: "A private search engine"
+description: "Searches Google, Bing, DuckDuckGo and dozens of other engines at once, without tracking you."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/searxng.png
+website: https://github.com/searxng/searxng
+version: "latest"
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8888"
+    required: true
+  - key: BASE_URL
+    label: Address you open it at
+    type: string
+    required: true
+    prefill: host
+    description: Include the port, for example http://192.168.1.10:8888/
+  - key: SECRET
+    label: Secret key
+    type: password
+    generate: true
+    description: Leave empty to generate a strong one.
+compose: |
+  services:
+    searxng:
+      image: searxng/searxng:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8080"
+      volumes:
+        - ${APP_DATA}/config:/etc/searxng
+      environment:
+        SEARXNG_BASE_URL: ${BASE_URL}
+        SEARXNG_SECRET: ${SECRET}
+      cap_drop:
+        - ALL
+      cap_add:
+        - CHOWN
+        - SETGID
+        - SETUID

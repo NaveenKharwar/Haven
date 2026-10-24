@@ -1,0 +1,33 @@
+id: wallos
+name: Wallos
+category: Productivity
+tagline: "Track your subscriptions and what they cost"
+description: "Keep every subscription in one place, see monthly and yearly spend, and get renewal reminders."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/wallos.png
+website: https://github.com/ellite/Wallos
+version: "5.10.2"
+archs: [amd64, arm64]
+screenshots:
+  - https://raw.githubusercontent.com/ellite/Wallos/main/screenshots/wallos-subscriptions-light.png
+  - https://raw.githubusercontent.com/ellite/Wallos/main/screenshots/wallos-subscriptions-dark.png
+  - https://raw.githubusercontent.com/ellite/Wallos/main/screenshots/wallos-subscriptions-popup.png
+  - https://raw.githubusercontent.com/ellite/Wallos/main/screenshots/wallos-dashboard-light.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8282"
+    required: true
+compose: |
+  services:
+    wallos:
+      image: bellamy/wallos:5.10.2
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:80"
+      volumes:
+        - ${APP_DATA}/db:/var/www/html/db
+        - ${APP_DATA}/logos:/var/www/html/images/uploads/logos
+      environment:
+        TZ: ${TZ}

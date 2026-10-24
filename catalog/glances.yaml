@@ -1,0 +1,29 @@
+id: glances
+name: Glances
+category: Monitoring
+tagline: "Live system and container stats in a web page"
+description: "A real-time view of CPU, memory, disks, network, processes and Docker containers on this server."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/glances.png
+website: https://nicolargo.github.io/glances/
+version: "latest-full"
+archs: [amd64, arm64]
+notes: "Glances has no login. Only use it on your home network or through Tailscale."
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "61208"
+    required: true
+compose: |
+  services:
+    glances:
+      image: nicolargo/glances:latest-full
+      restart: unless-stopped
+      pid: host
+      ports:
+        - "${WEB_PORT}:61208"
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock:ro
+      environment:
+        GLANCES_OPT: "-w"

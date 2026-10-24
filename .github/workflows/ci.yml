@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build the web UI
+        working-directory: web
+        run: |
+          npm ci --no-fund --no-audit
+          npx tsc --noEmit -p .
+          npm run build
+      - name: Vet and test
+        run: |
+          go vet ./...
+          go test ./...
+      - name: Check the install scripts
+        run: |
+          bash -n get.sh install.sh uninstall.sh
+          bash scripts/test-get.sh
+      - name: Cross-compile for Linux
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /dev/null .
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /dev/null .

@@ -1,0 +1,28 @@
+id: actual
+name: Actual Budget
+category: Productivity
+tagline: "Private budgeting that syncs across devices"
+description: "A fast, local-first budgeting app with envelope budgeting, bank-file import and sync."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/actual-budget.png
+website: https://actualbudget.org
+version: "26.10.0"
+archs: [amd64, arm64]
+notes: "Browsers only allow Actual over HTTPS or on localhost. Open it through Tailscale's https name, or behind a reverse proxy with HTTPS."
+screenshots:
+  - https://raw.githubusercontent.com/actualbudget/actual/master/demo.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "5006"
+    required: true
+compose: |
+  services:
+    actual:
+      image: actualbudget/actual-server:26.10.0
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:5006"
+      volumes:
+        - ${APP_DATA}/data:/data

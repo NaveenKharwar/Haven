@@ -1,0 +1,43 @@
+id: pihole
+name: Pi-hole
+category: Network
+tagline: Block ads and trackers for your whole network
+description: A DNS server that blocks ads on every device. Set your router's DNS to this server to use it.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/pi-hole.png
+website: https://pi-hole.net
+version: latest
+archs: [amd64, arm64]
+web: { port: WEB_PORT, path: /admin }
+notes: "Ubuntu's built-in DNS (systemd-resolved) already uses port 53. Free it first with: sudo sed -i 's/^#\\?DNSStubListener=.*/DNSStubListener=no/' /etc/systemd/resolved.conf && sudo ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf && sudo systemctl restart systemd-resolved"
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8082"
+    required: true
+  - key: DNS_PORT
+    label: DNS port
+    type: port
+    default: "53"
+    required: true
+    protocols: [tcp, udp]
+    description: Devices only use DNS on port 53, so keep this unless you know why.
+  - key: ADMIN_PASSWORD
+    label: Admin password
+    type: password
+    required: true
+compose: |
+  services:
+    pihole:
+      image: pihole/pihole:latest
+      restart: unless-stopped
+      ports:
+        - "${DNS_PORT}:53/tcp"
+        - "${DNS_PORT}:53/udp"
+        - "${WEB_PORT}:80/tcp"
+      volumes:
+        - ${APP_DATA}/etc-pihole:/etc/pihole
+      environment:
+        TZ: ${TZ}
+        FTLCONF_webserver_api_password: ${ADMIN_PASSWORD}
+        FTLCONF_dns_listeningMode: all

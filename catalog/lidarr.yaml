@@ -1,0 +1,36 @@
+id: lidarr
+name: Lidarr
+category: Downloads
+tagline: "Automatically find and organise music"
+description: "Keeps track of artists and albums you want and sends them to your download client."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/lidarr.png
+website: https://lidarr.audio
+version: "latest"
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8686"
+    required: true
+  - key: MEDIA_PATH
+    label: Media folder
+    type: path
+    default: /srv/media
+    required: true
+    description: Mounted at /data. Keep music and downloads under this one folder.
+compose: |
+  services:
+    lidarr:
+      image: lscr.io/linuxserver/lidarr:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8686"
+      volumes:
+        - ${APP_DATA}/config:/config
+        - ${MEDIA_PATH}:/data
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}

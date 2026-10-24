@@ -1,0 +1,27 @@
+id: ollama
+name: Ollama
+category: AI
+tagline: "Run large language models on your own server"
+description: "Download and run open AI models (Llama, Gemma, Qwen and more) locally. Pair it with Open WebUI for a chat page."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/ollama.png
+website: https://ollama.com
+version: "latest"
+archs: [amd64, arm64]
+min_ram_mb: 8192
+notes: "Models are large (2 to 40 GB each) and need plenty of RAM. Without a GPU they run slowly, so start with a small model. Install Open WebUI to download models and chat."
+web: { port: WEB_PORT, path: / }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "11434"
+    required: true
+compose: |
+  services:
+    ollama:
+      image: ollama/ollama:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:11434"
+      volumes:
+        - ${APP_DATA}/models:/root/.ollama

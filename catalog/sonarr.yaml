@@ -1,0 +1,36 @@
+id: sonarr
+name: Sonarr
+category: Downloads
+tagline: Automatically find and organise TV shows
+description: Watches for new episodes of your shows and sends them to your download client.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/sonarr.png
+website: https://sonarr.tv
+version: latest
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8989"
+    required: true
+  - key: MEDIA_PATH
+    label: Media folder
+    type: path
+    default: /srv/media
+    required: true
+    description: Mounted at /data. Keep TV shows and downloads under this one folder.
+compose: |
+  services:
+    sonarr:
+      image: lscr.io/linuxserver/sonarr:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8989"
+      volumes:
+        - ${APP_DATA}/config:/config
+        - ${MEDIA_PATH}:/data
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}

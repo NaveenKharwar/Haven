@@ -1,0 +1,38 @@
+id: homepage
+name: Homepage
+category: Dashboards
+tagline: "A fast start page for all your services"
+description: "A customisable home page with shortcuts, status and widgets for your apps. Edit its YAML files to add services."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/homepage.png
+website: https://gethomepage.dev
+version: "v2.7.0"
+archs: [amd64, arm64]
+notes: "Homepage refuses addresses it doesn't know. List every address you use to open it, with the port."
+screenshots:
+  - https://raw.githubusercontent.com/gethomepage/homepage/dev/images/1.png?v=2
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "3010"
+    required: true
+  - key: ALLOWED_HOSTS
+    label: Allowed addresses
+    type: string
+    required: true
+    description: Addresses you will open it from, with the port, separated by commas, for example 192.168.1.10:3010,haven.local:3010.
+compose: |
+  services:
+    homepage:
+      image: ghcr.io/gethomepage/homepage:v2.7.0
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:3000"
+      volumes:
+        - ${APP_DATA}/config:/app/config
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}
+        HOMEPAGE_ALLOWED_HOSTS: ${ALLOWED_HOSTS}

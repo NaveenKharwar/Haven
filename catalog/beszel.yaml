@@ -1,0 +1,31 @@
+id: beszel
+name: Beszel
+category: Monitoring
+tagline: "Lightweight server monitoring with history"
+description: "A small monitoring hub: CPU, memory, disk, network and Docker stats over time for one or many servers. Add servers by installing its agent."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/beszel.png
+website: https://beszel.dev
+version: "0.21.1"
+archs: [amd64, arm64]
+notes: "This is the hub. The first account you create is the admin. Add each server from the hub's 'Add system' button, which gives you the agent command to run."
+screenshots:
+  - https://henrygd-assets.b-cdn.net/beszel/screenshot-new.png
+  - https://beszel.dev/image/dashboard.png
+  - https://beszel.dev/image/system-full.png
+  - https://beszel.dev/image/settings-notifications.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8090"
+    required: true
+compose: |
+  services:
+    beszel:
+      image: henrygd/beszel:0.21.1
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8090"
+      volumes:
+        - ${APP_DATA}/data:/beszel_data

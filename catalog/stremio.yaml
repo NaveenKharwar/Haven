@@ -1,0 +1,35 @@
+id: stremio
+name: Stremio Server
+category: Media
+tagline: "The streaming engine for the Stremio media center"
+description: "Stremio's official streaming server. The Stremio apps (TV, phone, computer) use it to play video from your own files and from the legal sources you add, with transcoding. It does not come with any content."
+icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/stremio.png
+website: https://www.stremio.com
+version: "latest"
+archs: [amd64, arm64]
+min_ram_mb: 1024
+notes: "Stremio is a media center, not a content provider, and Haven installs no add-ons. Only watch things you have the right to watch: your own files (Stremio's Local Files add-on), free legal catalogues such as public-domain films, and YouTube. Streaming copyrighted films or shows from unlicensed sources is illegal in many countries. To use it: in the Stremio app go to Settings, Streaming, and set the server address to http://THIS-SERVER:11470."
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Server port
+    type: port
+    default: "11470"
+    required: true
+  - key: HTTPS_PORT
+    label: Secure port
+    type: port
+    default: "12470"
+    required: true
+compose: |
+  services:
+    stremio:
+      image: stremio/server:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:11470"
+        - "${HTTPS_PORT}:12470"
+      volumes:
+        - ${APP_DATA}/data:/root/.stremio-server
+      environment:
+        NO_CORS: "1"

@@ -1,0 +1,25 @@
+id: homeassistant
+name: Home Assistant
+category: Smart Home
+tagline: Control all your smart home devices in one place
+description: Open-source home automation that works with thousands of devices. Runs on the host network so it can discover devices.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/home-assistant.png
+website: https://www.home-assistant.io
+version: stable
+archs: [amd64, arm64]
+min_ram_mb: 2048
+start_timeout: 300
+host_ports: ["8123"]
+web: { port: "8123" }
+settings: []
+compose: |
+  services:
+    homeassistant:
+      image: ghcr.io/home-assistant/home-assistant:stable
+      restart: unless-stopped
+      network_mode: host
+      volumes:
+        - ${APP_DATA}/config:/config
+        - /run/dbus:/run/dbus:ro
+      environment:
+        TZ: ${TZ}

@@ -1,0 +1,46 @@
+id: qbittorrent
+name: qBittorrent
+category: Downloads
+tagline: Torrent client with a web interface
+description: A fast, ad-free torrent client you control from your browser.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/qbittorrent.png
+website: https://www.qbittorrent.org
+version: latest
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+notes: "The username is admin. A temporary password is printed in the app logs on first start (open Logs and look for 'temporary password'). Change it in Settings > Web UI."
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8085"
+    required: true
+  - key: TORRENT_PORT
+    label: Torrent port
+    type: port
+    default: "6881"
+    required: true
+    protocols: [tcp, udp]
+  - key: DOWNLOADS_PATH
+    label: Downloads folder
+    type: path
+    default: /srv/media/downloads
+    required: true
+compose: |
+  services:
+    qbittorrent:
+      image: lscr.io/linuxserver/qbittorrent:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:${WEB_PORT}"
+        - "${TORRENT_PORT}:6881"
+        - "${TORRENT_PORT}:6881/udp"
+      volumes:
+        - ${APP_DATA}/config:/config
+        - ${DOWNLOADS_PATH}:/downloads
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}
+        WEBUI_PORT: ${WEB_PORT}
+        TORRENTING_PORT: "6881"

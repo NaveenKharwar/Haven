@@ -1,0 +1,35 @@
+id: adguard
+name: AdGuard Home
+category: Network
+tagline: Network-wide ad blocking with a modern dashboard
+description: A DNS server that blocks ads and trackers, with encrypted DNS support. An alternative to Pi-hole (use one, not both).
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/adguard-home.png
+website: https://adguard.com/adguard-home/overview.html
+version: latest
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+notes: "In the first-run wizard, keep the admin web interface port at 3000. Ubuntu's built-in DNS uses port 53; free it first with: sudo sed -i 's/^#\\?DNSStubListener=.*/DNSStubListener=no/' /etc/systemd/resolved.conf && sudo ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf && sudo systemctl restart systemd-resolved"
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "3000"
+    required: true
+  - key: DNS_PORT
+    label: DNS port
+    type: port
+    default: "53"
+    required: true
+    protocols: [tcp, udp]
+compose: |
+  services:
+    adguard:
+      image: adguard/adguardhome:latest
+      restart: unless-stopped
+      ports:
+        - "${DNS_PORT}:53/tcp"
+        - "${DNS_PORT}:53/udp"
+        - "${WEB_PORT}:3000/tcp"
+      volumes:
+        - ${APP_DATA}/work:/opt/adguardhome/work
+        - ${APP_DATA}/conf:/opt/adguardhome/conf

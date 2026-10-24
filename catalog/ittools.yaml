@@ -1,0 +1,23 @@
+id: ittools
+name: IT Tools
+category: Developer
+tagline: Handy developer utilities in one place
+description: Converters, generators, formatters and more. No data is stored.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/it-tools.png
+website: https://github.com/CorentinTh/it-tools
+version: latest
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8084"
+    required: true
+compose: |
+  services:
+    it-tools:
+      image: corentinth/it-tools:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:80"

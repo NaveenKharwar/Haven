@@ -1,0 +1,29 @@
+id: trilium
+name: Trilium Notes
+category: Productivity
+tagline: "A hierarchical note-taking app for big knowledge bases"
+description: "Notes in a tree with rich text, code, diagrams and relations, with encryption and a web clipper."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/trilium-notes.png
+website: https://github.com/TriliumNext/Trilium
+version: "v0.106.1"
+archs: [amd64, arm64]
+screenshots:
+  - https://raw.githubusercontent.com/TriliumNext/Trilium/main/docs/app.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8091"
+    required: true
+compose: |
+  services:
+    trilium:
+      image: triliumnext/trilium:v0.106.1
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8080"
+      volumes:
+        - ${APP_DATA}/data:/home/node/trilium-data
+      environment:
+        TZ: ${TZ}

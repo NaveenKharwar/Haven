@@ -1,0 +1,34 @@
+id: homebox
+name: Homebox
+category: Home
+tagline: "An inventory of everything in your home"
+description: "Catalogue your belongings with photos, receipts, warranties and locations, so you can find anything."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/homebox.png
+website: https://homebox.software
+version: "0.27.1"
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "7745"
+    required: true
+  - key: PEPPER
+    label: Secret key
+    type: password
+    generate: true
+    description: Leave empty to generate a strong one.
+compose: |
+  services:
+    homebox:
+      image: ghcr.io/sysadminsmedia/homebox:0.27.1
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:7745"
+      volumes:
+        - ${APP_DATA}/data:/data
+      environment:
+        HBOX_MODE: production
+        HBOX_AUTH_API_KEY_PEPPER: ${PEPPER}
+        TZ: ${TZ}

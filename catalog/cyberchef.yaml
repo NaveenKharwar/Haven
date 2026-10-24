@@ -1,0 +1,23 @@
+id: cyberchef
+name: CyberChef
+category: Developer
+tagline: "The cyber Swiss Army knife"
+description: "Encode, decode, hash, convert and analyse data with a library of drag-and-drop operations. Runs entirely in your browser."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/cyberchef.png
+website: https://github.com/gchq/CyberChef
+version: "latest"
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8100"
+    required: true
+compose: |
+  services:
+    cyberchef:
+      image: ghcr.io/gchq/cyberchef:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8080"

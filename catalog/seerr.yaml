@@ -1,0 +1,32 @@
+id: seerr
+name: Seerr
+category: Media
+tagline: "Let family request movies and shows"
+description: "A request page for Jellyfin, Plex, Sonarr and Radarr. People ask for something and it flows to your download apps."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/seerr.png
+website: https://github.com/seerr-team/seerr
+version: "v3.5.1"
+archs: [amd64, arm64]
+notes: "Seerr is the successor to Jellyseerr and Overseerr."
+screenshots:
+  - https://raw.githubusercontent.com/seerr-team/seerr/develop/public/preview.jpg
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "5055"
+    required: true
+compose: |
+  services:
+    seerr:
+      image: ghcr.io/seerr-team/seerr:v3.5.1
+      restart: unless-stopped
+      init: true
+      user: "${PUID}:${PGID}"
+      ports:
+        - "${WEB_PORT}:5055"
+      volumes:
+        - ${APP_DATA}/config:/app/config
+      environment:
+        TZ: ${TZ}

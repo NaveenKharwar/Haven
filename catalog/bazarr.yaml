@@ -1,0 +1,38 @@
+id: bazarr
+name: Bazarr
+category: Downloads
+tagline: "Automatic subtitles for Sonarr and Radarr"
+description: "Finds and downloads subtitles for your shows and movies in the languages you choose."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/bazarr.png
+website: https://www.bazarr.media
+version: "latest"
+archs: [amd64, arm64]
+screenshots:
+  - https://raw.githubusercontent.com/morpheus65535/bazarr/master/screenshot/bazarr-screenshot.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "6767"
+    required: true
+  - key: MEDIA_PATH
+    label: Media folder
+    type: path
+    default: /srv/media
+    required: true
+    description: Mounted at /data, like Sonarr and Radarr.
+compose: |
+  services:
+    bazarr:
+      image: lscr.io/linuxserver/bazarr:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:6767"
+      volumes:
+        - ${APP_DATA}/config:/config
+        - ${MEDIA_PATH}:/data
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}

@@ -1,0 +1,316 @@
+/* Hallmark · genre: modern-minimal (technical) · macrostructure: Workbench (app) + Catalogue (store) · design-system: design.md · designed-as-app
+ * theme: custom "Faceplate" · vibe: rack hardware, engraved labels, LED signal, graphite
+ * paper oklch(17% 0.006 60) · accent oklch(70% 0.18 45) signal-orange
+ * display/body: IBM Plex Sans Variable · data/labels: JetBrains Mono Variable
+ * axes: dark / grotesk-sans / warm
+ */
+@import "@fontsource-variable/ibm-plex-sans/wght.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+ * Tokens. Graphite is the default faceplate; Bone is the light aluminium one.
+ * Every colour in the UI comes from here.
+ * ------------------------------------------------------------------------- */
+:root {
+  --paper:      oklch(17% 0.006 60);
+  --plate:      oklch(20.5% 0.007 60);
+  --raised:     oklch(24% 0.008 60);
+  --well:       oklch(13.5% 0.005 60);
+  --ink:        oklch(93% 0.008 75);
+  --ink-2:      oklch(76% 0.01 70);
+  --muted:      oklch(64% 0.01 70);
+  --unlit:      oklch(34% 0.008 60);
+  --rule:       oklch(30% 0.008 60);
+  --rule-2:     oklch(25.5% 0.007 60);
+  --rule-hi:    oklch(42% 0.01 60);
+  --plate-hi:   oklch(27% 0.008 60);
+  --key-top:    oklch(27% 0.008 60);
+  --key:        oklch(23.5% 0.008 60);
+  --key-edge:   oklch(12% 0.005 60);
+  --key-hi:     oklch(33% 0.009 60);
+  --shade:      oklch(8% 0.004 60 / 0.55);
+  --scrim:      oklch(8% 0.004 60 / 0.72);
+  --accent:     oklch(70% 0.18 45);
+  --accent-top: oklch(75% 0.17 48);
+  --accent-edge: oklch(48% 0.14 40);
+  --accent-ink: oklch(18% 0.03 45);
+  --accent-wash: oklch(70% 0.18 45 / 0.12);
+  --accent-hi:  oklch(99% 0.01 70 / 0.25);
+  --focus:      oklch(76% 0.2 48);
+  --ok:         oklch(80% 0.19 145);
+  --warn:       oklch(83% 0.16 85);
+  --bad:        oklch(67% 0.21 27);
+  --qr-ink: oklch(18% 0.01 60);
+  --qr-paper: oklch(97% 0.006 82);
+  --console-ink: oklch(86% 0.04 85);
+  --console-cmd: oklch(70% 0.18 45);
+  --console-ok:  oklch(80% 0.19 145);
+  --console-bad: oklch(67% 0.21 27);
+  --etch-shadow: 0 1px 0 oklch(8% 0.004 60 / 0.8);
+  color-scheme: dark;
+}
+
+:root[data-theme="bone"] {
+  --paper:      oklch(90.5% 0.012 82);
+  --plate:      oklch(94.5% 0.009 82);
+  --raised:     oklch(97.5% 0.006 82);
+  --well:       oklch(87% 0.013 80);
+  --ink:        oklch(21% 0.012 60);
+  --ink-2:      oklch(36% 0.012 60);
+  --muted:      oklch(46% 0.012 60);
+  --unlit:      oklch(80% 0.012 75);
+  --rule:       oklch(79% 0.014 72);
+  --rule-2:     oklch(84.5% 0.012 76);
+  --rule-hi:    oklch(66% 0.014 70);
+  --plate-hi:   oklch(99% 0.004 82);
+  --key-top:    oklch(99% 0.004 82);
+  --key:        oklch(94% 0.009 82);
+  --key-edge:   oklch(70% 0.014 70);
+  --key-hi:     oklch(99.5% 0.006 82 / 0.9);
+  --shade:      oklch(40% 0.02 60 / 0.22);
+  --scrim:      oklch(30% 0.01 60 / 0.45);
+  --accent:     oklch(66% 0.19 42);
+  --accent-top: oklch(71% 0.18 45);
+  --accent-edge: oklch(46% 0.15 38);
+  --accent-ink: oklch(17% 0.03 45);
+  --accent-wash: oklch(66% 0.19 42 / 0.12);
+  --accent-hi:  oklch(99% 0.01 70 / 0.35);
+  --focus:      oklch(58% 0.21 40);
+  --ok:         oklch(60% 0.17 148);
+  --warn:       oklch(70% 0.16 75);
+  --bad:        oklch(56% 0.21 27);
+  --console-ink: oklch(27% 0.02 65);
+  --console-cmd: oklch(48% 0.16 40);
+  --console-ok:  oklch(45% 0.14 148);
+  --console-bad: oklch(48% 0.2 27);
+  --etch-shadow: 0 1px 0 oklch(99.5% 0.006 82 / 0.7);
+  color-scheme: light;
+}
+
+@theme {
+  --color-*: initial;
+  --color-paper: var(--paper);
+  --color-plate: var(--plate);
+  --color-raised: var(--raised);
+  --color-well: var(--well);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-unlit: var(--unlit);
+  --color-rule: var(--rule);
+  --color-rule-2: var(--rule-2);
+  --color-rule-hi: var(--rule-hi);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-wash: var(--accent-wash);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-scrim: var(--scrim);
+  --color-console-cmd: var(--console-cmd);
+  --color-console-ok: var(--console-ok);
+  --color-console-bad: var(--console-bad);
+
+  --font-*: initial;
+  --font-sans: "IBM Plex Sans Variable", ui-sans-serif, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  /* Plex is already open and even; headings only need a touch of tightening. */
+  --tracking-tight: -0.012em;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+html, body { overflow-x: clip; }
+html, body, #root { min-height: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01";
+}
+h1, h2, h3, h4 { font-style: normal; text-wrap: balance; overflow-wrap: anywhere; min-width: 0; }
+::selection { background: var(--accent-wash); }
+* { scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+@layer components {
+  /* A plate is one panel of the faceplate: hairline edge, faint top bevel. */
+  .plate {
+    background: var(--plate);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    box-shadow: inset 0 1px 0 var(--plate-hi);
+  }
+  .plate-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+    min-height: 2.5rem; padding: 0 0.9rem;
+    border-bottom: 1px solid var(--rule-2);
+  }
+  /* A well is recessed into the plate: inputs, logs, readouts. */
+  .well {
+    background: var(--well);
+    border: 1px solid var(--rule-2);
+    border-radius: 2px;
+    box-shadow: inset 0 1px 3px var(--shade);
+  }
+  /* Engraved label. */
+  .etch {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem; font-weight: 500;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted);
+    text-shadow: var(--etch-shadow);
+    white-space: nowrap;
+  }
+  .readout {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500; letter-spacing: -0.04em; line-height: 1;
+  }
+  .unlit { color: var(--unlit); }
+
+  /* Keys: buttons shaped like hardware keycaps. */
+  .key {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+    height: 2.25rem; padding: 0 0.85rem;
+    border-radius: 3px;
+    font-family: var(--font-sans); font-size: 0.8125rem; font-weight: 550; letter-spacing: 0.01em;
+    white-space: nowrap; cursor: pointer; user-select: none;
+    color: var(--ink);
+    background: linear-gradient(var(--key-top), var(--key));
+    border: 1px solid var(--rule);
+    border-bottom-color: var(--key-edge);
+    box-shadow: inset 0 1px 0 var(--key-hi), 0 1px 0 var(--shade);
+    transition: transform 80ms var(--ease-out), border-color 120ms var(--ease-out), color 120ms var(--ease-out);
+    text-decoration: none;
+  }
+  .key:hover:not(:disabled) { border-color: var(--rule-hi); border-bottom-color: var(--key-edge); }
+  .key:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 1px 2px var(--shade); }
+  .key:disabled, .key[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
+  .key[data-loading="true"] { cursor: progress; }
+  .key-primary {
+    color: var(--accent-ink);
+    background: linear-gradient(var(--accent-top), var(--accent));
+    border-color: var(--accent-edge);
+    box-shadow: inset 0 1px 0 var(--accent-hi), 0 1px 0 var(--shade);
+  }
+  .key-primary:hover:not(:disabled) { border-color: var(--accent-edge); }
+  .key-danger { color: var(--bad); }
+  .key-sm { height: 1.875rem; padding: 0 0.6rem; font-size: 0.75rem; }
+  .key-icon { width: 2.25rem; padding: 0; }
+  .key-sm.key-icon { width: 1.875rem; }
+  .key-flat { background: transparent; border-color: transparent; box-shadow: none; color: var(--ink-2); }
+  .key-flat:hover:not(:disabled) { color: var(--ink); border-color: var(--rule); }
+
+  /* Sections that arrange themselves: one fills the row, two share it, and when
+     they don't all fit, a lone leftover stretches instead of leaving a gap. */
+  /* The widget cards: as many per row as fit, and a short last row stretches to fill the width. */
+  .board { display: flex; flex-wrap: wrap; gap: 1.25rem; }
+  .board > * { flex: 1 1 min(100%, 17rem); min-width: 0; }
+
+  .sections { display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: flex-start; }
+  .sections > * { flex: 1 1 min(100%, var(--sec-min, 26rem)); min-width: 0; }
+
+  .field {
+    width: 100%; height: 2.5rem; padding: 0 0.75rem;
+    font: inherit; font-size: 0.875rem; color: var(--ink);
+    background: var(--well);
+    border: 1px solid var(--rule-2); border-radius: 2px;
+    box-shadow: inset 0 1px 3px var(--shade);
+    outline: none;
+  }
+  .field::placeholder { color: var(--muted); }
+  .field:hover { border-color: var(--rule); }
+  .field:focus-visible, .field:focus { border-color: var(--accent); box-shadow: inset 0 1px 3px var(--shade), 0 0 0 2px var(--accent-wash); }
+  .field[aria-invalid="true"] { border-color: var(--bad); }
+  .field:disabled { opacity: 0.5; }
+  textarea.field { height: auto; padding: 0.65rem 0.75rem; line-height: 1.55; }
+  select.field { appearance: none; background-image: none; }
+
+  /* Status LED. */
+  .led {
+    display: inline-block; flex-shrink: 0;
+    width: 0.5rem; height: 0.5rem; border-radius: 999px;
+    background: var(--unlit);
+    box-shadow: inset 0 1px 1px var(--shade);
+  }
+  .led[data-s="ok"]   { background: var(--ok);   box-shadow: 0 0 0.45rem color-mix(in oklch, var(--ok) 70%, transparent); }
+  .led[data-s="warn"] { background: var(--warn); box-shadow: 0 0 0.45rem color-mix(in oklch, var(--warn) 70%, transparent); }
+  .led[data-s="bad"]  { background: var(--bad);  box-shadow: 0 0 0.45rem color-mix(in oklch, var(--bad) 70%, transparent); }
+  .led[data-s="busy"] { background: var(--accent); box-shadow: 0 0 0.45rem color-mix(in oklch, var(--accent) 70%, transparent); animation: blink 900ms steps(2, jump-none) infinite; }
+
+  /* LED ladder meter. */
+  .ladder { display: grid; grid-template-columns: repeat(var(--segs, 24), minmax(0, 1fr)); gap: 2px; height: 0.5rem; }
+  .ladder > i { background: var(--unlit); border-radius: 1px; opacity: 0.55; }
+  .ladder > i[data-on] { opacity: 1; background: var(--ink-2); }
+  .ladder > i[data-on="warn"] { background: var(--warn); }
+  .ladder > i[data-on="bad"] { background: var(--bad); }
+
+  .qr { background: var(--qr-paper); color: var(--qr-ink); }
+  .qr svg { display: block; width: 100%; height: 100%; }
+  .tape { font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.65; color: var(--console-ink); }
+
+  /* Three vent slits: the one decorative mark on app modules. */
+  .vent { display: inline-flex; gap: 2px; }
+  .vent > i { width: 2px; height: 0.6rem; border-radius: 1px; background: var(--rule); }
+
+  .tag {
+    display: inline-flex; align-items: center; gap: 0.35rem; height: 1.25rem; padding: 0 0.4rem;
+    font-family: var(--font-mono); font-size: 0.625rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+    border: 1px solid var(--rule); border-radius: 2px; color: var(--ink-2); white-space: nowrap;
+  }
+  .tag-accent { color: var(--accent); border-color: color-mix(in oklch, var(--accent) 45%, transparent); }
+  .tag-ok { color: var(--ok); border-color: color-mix(in oklch, var(--ok) 40%, transparent); }
+  .tag-bad { color: var(--bad); border-color: color-mix(in oklch, var(--bad) 45%, transparent); }
+  .tag-warn { color: var(--warn); border-color: color-mix(in oklch, var(--warn) 45%, transparent); }
+}
+
+@keyframes blink { 0% { opacity: 1; } 100% { opacity: 0.25; } }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes slide { from { opacity: 0; transform: translateX(2rem); } to { opacity: 1; transform: none; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+.rise { animation: rise 260ms var(--ease-out) both; }
+.slide { animation: slide 280ms var(--ease-out) both; }
+.spin { animation: spin 900ms linear infinite; }
+
+/* ---------------------------------------------------------------------------
+ * TV mode: everything scales with the screen, and focus is a lit bezel.
+ * ------------------------------------------------------------------------- */
+.tv {
+  font-size: clamp(16px, 1.25vw, 44px);
+  min-height: 100vh;
+}
+.tv [data-nav] { outline: none; transition: transform 140ms var(--ease-out); scroll-margin: 4em 3em; }
+.tv [data-nav]:focus {
+  transform: scale(1.045);
+  box-shadow: 0 0 0 0.18rem var(--paper), 0 0 0 0.38rem var(--accent), 0 0.8rem 2rem var(--shade);
+  z-index: 1;
+}
+/* Pointer remotes (e.g. LG Magic Remote): a quiet outline on hover, so it
+   never looks like a second focused tile. */
+.tv [data-nav]:hover:not(:focus) { box-shadow: 0 0 0 0.12rem var(--rule-hi); }
+.tv .key { height: 2.75em; padding: 0 1.2em; font-size: 1rem; }
+.tv .field { height: 2.6em; font-size: 1rem; }
+
+/* Light mode: for TVs with little memory and a slow browser. No animation or
+   transitions, no lift or blur on focus, only a plain outline. */
+.tv-lite *, .tv-lite *::before, .tv-lite *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+.tv-lite [data-nav]:focus { transform: none; box-shadow: 0 0 0 0.3rem var(--accent); }
+.tv-lite [data-nav]:hover:not(:focus) { box-shadow: 0 0 0 0.12rem var(--rule-hi); }
+.tv-lite .plate { box-shadow: none; }
+.tv-lite .led[data-s] { box-shadow: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rise, .slide { animation: rise 120ms linear both; }
+  .led[data-s="busy"] { animation: none; }
+  .spin { animation-duration: 2s; }
+  .tv [data-nav], .key { transition: none; }
+  .tv [data-nav]:focus { transform: none; }
+}

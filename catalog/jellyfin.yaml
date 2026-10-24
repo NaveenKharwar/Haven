@@ -1,0 +1,37 @@
+id: jellyfin
+name: Jellyfin
+category: Media
+tagline: Stream your movies, shows and music to any device
+description: A free media server. Point it at your media folder and watch from your TV, phone or browser.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/jellyfin.png
+website: https://jellyfin.org
+version: "10.10.7"
+archs: [amd64, arm64]
+min_ram_mb: 1024
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8096"
+    required: true
+  - key: MEDIA_PATH
+    label: Media folder
+    type: path
+    default: /srv/media
+    required: true
+    description: Folder with your movies, shows and music. Jellyfin can only read it, never change it.
+compose: |
+  services:
+    jellyfin:
+      image: jellyfin/jellyfin:10.10.7
+      restart: unless-stopped
+      user: "${PUID}:${PGID}"
+      ports:
+        - "${WEB_PORT}:8096"
+      volumes:
+        - ${APP_DATA}/config:/config
+        - ${APP_DATA}/cache:/cache
+        - ${MEDIA_PATH}:/media:ro
+      environment:
+        TZ: ${TZ}

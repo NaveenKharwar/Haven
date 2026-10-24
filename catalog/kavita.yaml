@@ -1,0 +1,34 @@
+id: kavita
+name: Kavita
+category: Media
+tagline: "A reader for manga, comics and books"
+description: "A fast, polished library and reader for comics, manga and ebooks, with reading progress and user accounts."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/kavita.png
+website: https://www.kavitareader.com
+version: "0.9.1"
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "5050"
+    required: true
+  - key: LIBRARY_PATH
+    label: Library folder
+    type: path
+    default: /srv/media/books
+    required: true
+    description: Comics, manga and books. Kavita only reads it.
+compose: |
+  services:
+    kavita:
+      image: jvmilazz0/kavita:0.9.1
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:5000"
+      volumes:
+        - ${APP_DATA}/config:/kavita/config
+        - ${LIBRARY_PATH}:/library:ro
+      environment:
+        TZ: ${TZ}

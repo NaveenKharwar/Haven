@@ -1,0 +1,38 @@
+id: plex
+name: Plex
+category: Media
+tagline: "Stream your media on every device"
+description: "A polished media server with apps for phones, TVs and browsers. Runs on the host network so TVs can find it."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/plex.png
+website: https://www.plex.tv
+version: "latest"
+archs: [amd64, arm64]
+min_ram_mb: 2048
+host_ports: ["32400"]
+web: { port: "32400", path: /web }
+settings:
+  - key: MEDIA_PATH
+    label: Media folder
+    type: path
+    default: /srv/media
+    required: true
+    description: Your movies, shows and music. Plex only reads it.
+  - key: CLAIM
+    label: Claim code (optional)
+    type: string
+    description: Get one at plex.tv/claim. It expires after 4 minutes, so install straight after copying it.
+compose: |
+  services:
+    plex:
+      image: lscr.io/linuxserver/plex:latest
+      restart: unless-stopped
+      network_mode: host
+      volumes:
+        - ${APP_DATA}/config:/config
+        - ${MEDIA_PATH}:/media:ro
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}
+        VERSION: docker
+        PLEX_CLAIM: ${CLAIM}

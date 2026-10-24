@@ -1,0 +1,39 @@
+id: linkding
+name: linkding
+category: Productivity
+tagline: "A fast, simple bookmark manager"
+description: "Save, tag and search your bookmarks, with browser extensions and archived copies of pages."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/linkding.png
+website: https://linkding.link
+version: "1.47.0"
+archs: [amd64, arm64]
+screenshots:
+  - https://raw.githubusercontent.com/sissbruecker/linkding/master/docs/public/linkding-screenshot.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "9090"
+    required: true
+  - key: ADMIN_USER
+    label: Admin username
+    type: string
+    default: admin
+    required: true
+  - key: ADMIN_PASSWORD
+    label: Admin password
+    type: password
+    required: true
+compose: |
+  services:
+    linkding:
+      image: sissbruecker/linkding:1.47.0
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:9090"
+      volumes:
+        - ${APP_DATA}/data:/etc/linkding/data
+      environment:
+        LD_SUPERUSER_NAME: ${ADMIN_USER}
+        LD_SUPERUSER_PASSWORD: ${ADMIN_PASSWORD}

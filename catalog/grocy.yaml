@@ -1,0 +1,35 @@
+id: grocy
+name: Grocy
+category: Home
+tagline: "Groceries and household management"
+description: "Track what's in your pantry, plan meals, manage chores, and keep shopping lists."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/grocy.png
+website: https://grocy.info
+version: "latest"
+archs: [amd64, arm64]
+notes: "First sign-in: admin with password admin. Change it straight away."
+screenshots:
+  - https://github.com/grocy/grocy/raw/master/.github/publication_assets/stock.png
+  - https://github.com/grocy/grocy/raw/master/.github/publication_assets/shoppinglist.png
+  - https://github.com/grocy/grocy/raw/master/.github/publication_assets/mealplan.png
+  - https://github.com/grocy/grocy/raw/master/.github/publication_assets/chores.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "9283"
+    required: true
+compose: |
+  services:
+    grocy:
+      image: lscr.io/linuxserver/grocy:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:80"
+      volumes:
+        - ${APP_DATA}/config:/config
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}

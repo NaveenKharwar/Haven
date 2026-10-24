@@ -1,0 +1,42 @@
+id: audiobookshelf
+name: Audiobookshelf
+category: Media
+tagline: Audiobooks and podcasts, everywhere
+description: Stream audiobooks and podcasts with progress sync across the web and phone apps.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/audiobookshelf.png
+website: https://www.audiobookshelf.org
+version: latest
+archs: [amd64, arm64]
+screenshots:
+  - https://github.com/advplyr/audiobookshelf/raw/master/images/DemoLibrary.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "13378"
+    required: true
+  - key: AUDIOBOOKS_PATH
+    label: Audiobooks folder
+    type: path
+    default: /srv/media/audiobooks
+    required: true
+  - key: PODCASTS_PATH
+    label: Podcasts folder
+    type: path
+    default: /srv/media/podcasts
+    required: true
+compose: |
+  services:
+    audiobookshelf:
+      image: ghcr.io/advplyr/audiobookshelf:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:80"
+      volumes:
+        - ${APP_DATA}/config:/config
+        - ${APP_DATA}/metadata:/metadata
+        - ${AUDIOBOOKS_PATH}:/audiobooks
+        - ${PODCASTS_PATH}:/podcasts
+      environment:
+        TZ: ${TZ}

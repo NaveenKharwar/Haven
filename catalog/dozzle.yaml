@@ -1,0 +1,26 @@
+id: dozzle
+name: Dozzle
+category: Monitoring
+tagline: Live logs for all your containers
+description: A fast, real-time log viewer for every Docker container on this server.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/dozzle.png
+website: https://dozzle.dev
+version: latest
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+notes: Dozzle has no login by default. Only expose it on your home network.
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8087"
+    required: true
+compose: |
+  services:
+    dozzle:
+      image: amir20/dozzle:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8080"
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock:ro

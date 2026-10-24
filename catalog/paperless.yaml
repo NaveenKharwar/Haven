@@ -1,0 +1,90 @@
+id: paperless
+name: Paperless-ngx
+category: Productivity
+tagline: Scan, search and organise all your documents
+description: Turns paper and PDFs into a searchable archive with automatic text recognition and tagging.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/paperless-ngx.png
+website: https://docs.paperless-ngx.com
+version: latest
+archs: [amd64, arm64]
+min_ram_mb: 2048
+start_timeout: 300
+screenshots:
+  - https://raw.githubusercontent.com/paperless-ngx/paperless-ngx/main/docs/assets/screenshots/documents-smallcards-dark.png
+  - https://raw.githubusercontent.com/paperless-ngx/paperless-ngx/main/docs/assets/screenshots/documents-smallcards.png
+web: { port: WEB_PORT }
+notes: Drop files into the Consume folder and Paperless imports them automatically.
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8000"
+    required: true
+  - key: ADMIN_USER
+    label: Admin username
+    type: string
+    default: admin
+    required: true
+  - key: ADMIN_PASSWORD
+    label: Admin password
+    type: password
+    required: true
+  - key: CONSUME_PATH
+    label: Consume folder
+    type: path
+    default: /srv/paperless/consume
+    required: true
+  - key: DB_PASSWORD
+    label: Database password
+    type: password
+    generate: true
+  - key: SECRET_KEY
+    label: Secret key
+    type: password
+    generate: true
+compose: |
+  services:
+    broker:
+      image: redis:7-alpine
+      restart: unless-stopped
+      volumes:
+        - ${APP_DATA}/redis:/data
+    db:
+      image: postgres:16-alpine
+      restart: unless-stopped
+      volumes:
+        - ${APP_DATA}/pgdata:/var/lib/postgresql/data
+      environment:
+        POSTGRES_DB: paperless
+        POSTGRES_USER: paperless
+        POSTGRES_PASSWORD: ${DB_PASSWORD}
+      healthcheck:
+        test: ["CMD-SHELL", "pg_isready -U paperless"]
+        interval: 10s
+        timeout: 5s
+        retries: 12
+    webserver:
+      image: ghcr.io/paperless-ngx/paperless-ngx:latest
+      restart: unless-stopped
+      depends_on:
+        db:
+          condition: service_healthy
+        broker:
+          condition: service_started
+      ports:
+        - "${WEB_PORT}:8000"
+      volumes:
+        - ${APP_DATA}/data:/usr/src/paperless/data
+        - ${APP_DATA}/media:/usr/src/paperless/media
+        - ${APP_DATA}/export:/usr/src/paperless/export
+        - ${CONSUME_PATH}:/usr/src/paperless/consume
+      environment:
+        PAPERLESS_REDIS: redis://broker:6379
+        PAPERLESS_DBHOST: db
+        PAPERLESS_DBPASS: ${DB_PASSWORD}
+        PAPERLESS_SECRET_KEY: ${SECRET_KEY}
+        PAPERLESS_ADMIN_USER: ${ADMIN_USER}
+        PAPERLESS_ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+        PAPERLESS_TIME_ZONE: ${TZ}
+        USERMAP_UID: ${PUID}
+        USERMAP_GID: ${PGID}

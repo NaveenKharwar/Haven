@@ -1,0 +1,29 @@
+id: prowlarr
+name: Prowlarr
+category: Downloads
+tagline: One place to manage indexers for Sonarr and Radarr
+description: Manages torrent and Usenet indexers and syncs them to your other apps.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/prowlarr.png
+website: https://prowlarr.com
+version: latest
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "9696"
+    required: true
+compose: |
+  services:
+    prowlarr:
+      image: lscr.io/linuxserver/prowlarr:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:9696"
+      volumes:
+        - ${APP_DATA}/config:/config
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}

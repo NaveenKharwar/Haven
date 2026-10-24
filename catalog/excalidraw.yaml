@@ -1,0 +1,25 @@
+id: excalidraw
+name: Excalidraw
+category: Productivity
+tagline: Hand-drawn style whiteboard and diagrams
+description: A virtual whiteboard for sketching diagrams. Drawings are saved in your browser.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/excalidraw.png
+website: https://excalidraw.com
+version: latest
+archs: [amd64, arm64]
+screenshots:
+  - https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github%2Fproduct_showcase.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8086"
+    required: true
+compose: |
+  services:
+    excalidraw:
+      image: excalidraw/excalidraw:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:80"

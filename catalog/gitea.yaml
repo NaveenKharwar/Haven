@@ -1,0 +1,41 @@
+id: gitea
+name: Gitea
+category: Developer
+tagline: Your own GitHub for private code
+description: Lightweight Git hosting with pull requests, issues and CI. Finish setup in the browser on first visit.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png
+website: https://about.gitea.com
+version: "1"
+archs: [amd64, arm64]
+screenshots:
+  - https://dl.gitea.com/screenshots/login.png
+  - https://dl.gitea.com/screenshots/register.png
+  - https://dl.gitea.com/screenshots/home.png
+  - https://dl.gitea.com/screenshots/issues.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "3002"
+    required: true
+  - key: SSH_PORT
+    label: Git SSH port
+    type: port
+    default: "2222"
+    required: true
+compose: |
+  services:
+    gitea:
+      image: gitea/gitea:1
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:3000"
+        - "${SSH_PORT}:22"
+      volumes:
+        - ${APP_DATA}/data:/data
+      environment:
+        USER_UID: ${PUID}
+        USER_GID: ${PGID}
+        GITEA__server__SSH_PORT: ${SSH_PORT}
+        TZ: ${TZ}

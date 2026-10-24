@@ -1,0 +1,31 @@
+id: stirlingpdf
+name: Stirling PDF
+category: Productivity
+tagline: Edit, merge, split and convert PDFs
+description: Dozens of PDF tools in your browser, with files processed on your own server.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/stirling-pdf.png
+website: https://www.stirlingpdf.com
+version: latest
+archs: [amd64, arm64]
+min_ram_mb: 1024
+start_timeout: 240
+screenshots:
+  - https://raw.githubusercontent.com/Stirling-Tools/Stirling-PDF/main/docs/images/home-light.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8083"
+    required: true
+compose: |
+  services:
+    stirling-pdf:
+      image: stirlingtools/stirling-pdf:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8080"
+      volumes:
+        - ${APP_DATA}/configs:/configs
+      environment:
+        DOCKER_ENABLE_SECURITY: "false"

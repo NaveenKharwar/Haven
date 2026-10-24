@@ -1,0 +1,41 @@
+id: codeserver
+name: code-server
+category: Developer
+tagline: VS Code in your browser
+description: A full VS Code editor running on your server, reachable from any device.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/code-server.png
+website: https://github.com/coder/code-server
+version: latest
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8443"
+    required: true
+  - key: PASSWORD
+    label: Login password
+    type: password
+    required: true
+  - key: WORKSPACE_PATH
+    label: Projects folder
+    type: path
+    default: /srv/code
+    required: true
+compose: |
+  services:
+    code-server:
+      image: lscr.io/linuxserver/code-server:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8443"
+      volumes:
+        - ${APP_DATA}/config:/config
+        - ${WORKSPACE_PATH}:/config/workspace
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}
+        PASSWORD: ${PASSWORD}
+        DEFAULT_WORKSPACE: /config/workspace

@@ -1,0 +1,40 @@
+id: syncthing
+name: Syncthing
+category: Files
+tagline: Sync folders between your devices, privately
+description: Continuous peer-to-peer file sync between computers and phones, with no cloud in the middle.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/syncthing.png
+website: https://syncthing.net
+version: latest
+archs: [amd64, arm64]
+host_ports: ["22000/tcp", "22000/udp", "21027/udp"]
+web: { port: WEB_PORT }
+notes: Set a GUI username and password in Syncthing's settings after the first start.
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8384"
+    required: true
+  - key: SYNC_PATH
+    label: Sync folder
+    type: path
+    default: /srv/sync
+    required: true
+compose: |
+  services:
+    syncthing:
+      image: lscr.io/linuxserver/syncthing:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8384"
+        - "22000:22000/tcp"
+        - "22000:22000/udp"
+        - "21027:21027/udp"
+      volumes:
+        - ${APP_DATA}/config:/config
+        - ${SYNC_PATH}:/data1
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}

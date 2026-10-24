@@ -1,0 +1,44 @@
+id: openwebui
+name: Open WebUI
+category: AI
+tagline: "A ChatGPT-style page for your own models"
+description: "A friendly chat interface for Ollama and other model servers, with accounts, documents and prompts."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/open-webui.png
+website: https://openwebui.com
+version: "main"
+archs: [amd64, arm64]
+min_ram_mb: 2048
+start_timeout: 240
+notes: "The first account you create becomes the admin. The image is large (several GB)."
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "3100"
+    required: true
+  - key: OLLAMA_URL
+    label: Ollama address
+    type: string
+    default: http://host.docker.internal:11434
+    description: Where Ollama runs. The default works if you installed Ollama from the catalog.
+  - key: SECRET
+    label: Secret key
+    type: password
+    generate: true
+    description: Leave empty to generate a strong one.
+compose: |
+  services:
+    open-webui:
+      image: ghcr.io/open-webui/open-webui:main
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8080"
+      volumes:
+        - ${APP_DATA}/data:/app/backend/data
+      environment:
+        OLLAMA_BASE_URL: ${OLLAMA_URL}
+        WEBUI_SECRET_KEY: ${SECRET}
+        TZ: ${TZ}
+      extra_hosts:
+        - "host.docker.internal:host-gateway"

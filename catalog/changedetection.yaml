@@ -1,0 +1,35 @@
+id: changedetection
+name: changedetection.io
+category: Monitoring
+tagline: "Get alerted when a web page changes"
+description: "Watches web pages for changes (prices, stock, news, documents) and notifies you through Telegram, email, ntfy and more."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/changedetection.png
+website: https://changedetection.io
+version: "0.50.43"
+archs: [amd64, arm64]
+min_ram_mb: 512
+screenshots:
+  - https://raw.githubusercontent.com/dgtlmoon/changedetection.io/master/docs/screenshot.png
+  - https://raw.githubusercontent.com/dgtlmoon/changedetection.io/master/docs/screenshot-diff.png
+  - https://raw.githubusercontent.com/dgtlmoon/changedetection.io/master/docs/restock-overview.png
+  - https://raw.githubusercontent.com/dgtlmoon/changedetection.io/master/docs/web-page-change-conditions.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "5001"
+    required: true
+compose: |
+  services:
+    changedetection:
+      image: ghcr.io/dgtlmoon/changedetection.io:0.50.43
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:5000"
+      volumes:
+        - ${APP_DATA}/datastore:/datastore
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}

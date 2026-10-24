@@ -1,0 +1,27 @@
+id: portainer
+name: Portainer
+category: Developer
+tagline: Advanced Docker management
+description: Detailed control over containers, images, networks and volumes for power users.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/portainer.png
+website: https://www.portainer.io
+version: lts
+archs: [amd64, arm64]
+web: { port: WEB_PORT, scheme: https }
+notes: Create the admin account within 5 minutes of installing, or Portainer locks setup (restart it to try again). It uses a self-signed certificate, so your browser will show a warning.
+settings:
+  - key: WEB_PORT
+    label: Web port (HTTPS)
+    type: port
+    default: "9443"
+    required: true
+compose: |
+  services:
+    portainer:
+      image: portainer/portainer-ce:lts
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:9443"
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+        - ${APP_DATA}/data:/data

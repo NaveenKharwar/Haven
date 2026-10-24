@@ -1,0 +1,33 @@
+id: n8n
+name: n8n
+category: Automation
+tagline: Automate tasks by connecting your apps
+description: A visual workflow builder with hundreds of integrations, like a self-hosted Zapier.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/n8n.png
+website: https://n8n.io
+version: latest
+archs: [amd64, arm64]
+min_ram_mb: 1024
+screenshots:
+  - https://raw.githubusercontent.com/n8n-io/n8n/master/assets/n8n-screenshot-readme.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "5678"
+    required: true
+compose: |
+  services:
+    n8n:
+      image: docker.n8n.io/n8nio/n8n:latest
+      restart: unless-stopped
+      user: "${PUID}:${PGID}"
+      ports:
+        - "${WEB_PORT}:5678"
+      volumes:
+        - ${APP_DATA}/data:/home/node/.n8n
+      environment:
+        GENERIC_TIMEZONE: ${TZ}
+        TZ: ${TZ}
+        N8N_SECURE_COOKIE: "false"

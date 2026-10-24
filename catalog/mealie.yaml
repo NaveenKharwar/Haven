@@ -1,0 +1,32 @@
+id: mealie
+name: Mealie
+category: Productivity
+tagline: "A recipe manager and meal planner"
+description: "Save recipes from any website with one paste, plan your week and build shopping lists."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/mealie.png
+website: https://mealie.io
+version: "v3.29.0"
+archs: [amd64, arm64]
+min_ram_mb: 1024
+notes: "First sign-in: changeme@example.com with password MyPassword. Change both straight away."
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "9925"
+    required: true
+compose: |
+  services:
+    mealie:
+      image: ghcr.io/mealie-recipes/mealie:v3.29.0
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:9000"
+      volumes:
+        - ${APP_DATA}/data:/app/data
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}
+        ALLOW_SIGNUP: "false"

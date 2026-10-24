@@ -1,0 +1,71 @@
+id: karakeep
+name: Karakeep
+category: Productivity
+tagline: "Save links, notes and images, with AI tagging"
+description: "A 'bookmark everything' app. Saves pages with full-text search and optional AI tagging. Includes its own search engine and a headless browser."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/karakeep.png
+website: https://karakeep.app
+version: "0.34.1"
+archs: [amd64, arm64]
+min_ram_mb: 2048
+start_timeout: 240
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "3040"
+    required: true
+  - key: PUBLIC_URL
+    label: Address you open it at
+    type: string
+    required: true
+    prefill: host
+    description: Include the port, for example http://192.168.1.10:3040
+  - key: SECRET
+    label: Secret key
+    type: password
+    generate: true
+    description: Leave empty to generate a strong one.
+  - key: MEILI_KEY
+    label: Search key
+    type: password
+    generate: true
+    description: Leave empty to generate a strong one.
+compose: |
+  services:
+    web:
+      image: ghcr.io/karakeep-app/karakeep:0.34.1
+      restart: unless-stopped
+      depends_on:
+        - meilisearch
+        - chrome
+      ports:
+        - "${WEB_PORT}:3000"
+      volumes:
+        - ${APP_DATA}/data:/data
+      environment:
+        DATA_DIR: /data
+        MEILI_ADDR: http://meilisearch:7700
+        BROWSER_WEB_URL: http://chrome:9222
+        NEXTAUTH_SECRET: ${SECRET}
+        MEILI_MASTER_KEY: ${MEILI_KEY}
+        NEXTAUTH_URL: ${PUBLIC_URL}
+    chrome:
+      image: ghcr.io/karakeep-app/karakeep-chrome:release
+      restart: unless-stopped
+      init: true
+      command:
+        - --disable-gpu
+        - --disable-dev-shm-usage
+        - --hide-scrollbars
+        - --disable-blink-features=AutomationControlled
+        - --window-size=1440,900
+    meilisearch:
+      image: getmeili/meilisearch:v1.41.0
+      restart: unless-stopped
+      volumes:
+        - ${APP_DATA}/meili:/meili_data
+      environment:
+        MEILI_NO_ANALYTICS: "true"
+        MEILI_MASTER_KEY: ${MEILI_KEY}

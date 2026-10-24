@@ -1,0 +1,44 @@
+id: vikunja
+name: Vikunja
+category: Productivity
+tagline: "A to-do and project manager"
+description: "Lists, kanban boards, gantt charts and reminders, shared with your family or team."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/vikunja.png
+website: https://vikunja.io
+version: "2.7.1"
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "3456"
+    required: true
+  - key: PUBLIC_URL
+    label: Address you open it at
+    type: string
+    required: true
+    prefill: host
+    description: Include the port and a trailing slash, for example http://192.168.1.10:3456/
+  - key: JWT_SECRET
+    label: Login secret
+    type: password
+    generate: true
+    description: Leave empty to generate a strong one.
+compose: |
+  services:
+    vikunja:
+      image: vikunja/vikunja:2.7.1
+      restart: unless-stopped
+      user: "0:0"
+      ports:
+        - "${WEB_PORT}:3456"
+      volumes:
+        - ${APP_DATA}/db:/db
+        - ${APP_DATA}/files:/app/vikunja/files
+      environment:
+        VIKUNJA_SERVICE_PUBLICURL: ${PUBLIC_URL}
+        VIKUNJA_SERVICE_JWTSECRET: ${JWT_SECRET}
+        VIKUNJA_DATABASE_TYPE: sqlite
+        VIKUNJA_DATABASE_PATH: /db/vikunja.db
+        TZ: ${TZ}

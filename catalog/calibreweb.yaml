@@ -1,0 +1,39 @@
+id: calibreweb
+name: Calibre-Web
+category: Media
+tagline: "A web library for your ebooks"
+description: "Browse, read and send ebooks from your Calibre library, with user accounts and OPDS for reader apps."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/calibre-web.png
+website: https://github.com/janeczku/calibre-web
+version: "latest"
+archs: [amd64, arm64]
+notes: "First sign-in: admin with password admin123. In its first-run screen, set the Calibre library location to /books."
+screenshots:
+  - https://github.com/janeczku/calibre-web/wiki/images/main_screen.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8183"
+    required: true
+  - key: BOOKS_PATH
+    label: Books folder
+    type: path
+    default: /srv/media/books
+    required: true
+    description: The folder holding your Calibre library (metadata.db).
+compose: |
+  services:
+    calibre-web:
+      image: lscr.io/linuxserver/calibre-web:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8083"
+      volumes:
+        - ${APP_DATA}/config:/config
+        - ${BOOKS_PATH}:/books
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}

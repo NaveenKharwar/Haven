@@ -1,0 +1,28 @@
+id: memos
+name: Memos
+category: Productivity
+tagline: Quick notes and a private journal
+description: A lightweight note-taking app with Markdown, tags and a timeline view. The first account you create is the admin.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/memos.png
+website: https://usememos.com
+version: stable
+archs: [amd64, arm64]
+screenshots:
+  - https://raw.githubusercontent.com/usememos/.github/refs/heads/main/assets/previews/timeline-dark.png
+  - https://raw.githubusercontent.com/usememos/.github/refs/heads/main/assets/previews/timeline-light.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "5230"
+    required: true
+compose: |
+  services:
+    memos:
+      image: neosmemo/memos:stable
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:5230"
+      volumes:
+        - ${APP_DATA}/data:/var/opt/memos

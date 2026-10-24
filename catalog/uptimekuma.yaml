@@ -1,0 +1,29 @@
+id: uptimekuma
+name: Uptime Kuma
+category: Monitoring
+tagline: Get alerted when your websites or services go down
+description: A friendly monitoring tool with status pages and notifications to Telegram, Discord, email and more.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/uptime-kuma.png
+website: https://github.com/louislam/uptime-kuma
+version: "1"
+archs: [amd64, arm64]
+screenshots:
+  - https://user-images.githubusercontent.com/1336778/212262296-e6205815-ad62-488c-83ec-a5b0d0689f7c.jpg
+  - https://uptime.kuma.pet/img/light.jpg
+  - https://user-images.githubusercontent.com/1336778/134628766-a3fe0981-0926-4285-ab46-891a21c3e4cb.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "3001"
+    required: true
+compose: |
+  services:
+    uptime-kuma:
+      image: louislam/uptime-kuma:1
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:3001"
+      volumes:
+        - ${APP_DATA}/data:/app/data

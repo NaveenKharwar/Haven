@@ -1,0 +1,36 @@
+id: navidrome
+name: Navidrome
+category: Media
+tagline: Your own music streaming service
+description: A fast music server with a modern web player, compatible with Subsonic apps on your phone.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/navidrome.png
+website: https://www.navidrome.org
+version: latest
+archs: [amd64, arm64]
+screenshots:
+  - https://raw.githubusercontent.com/navidrome/navidrome/master/.github/screenshots/ss-mobile-login.png
+  - https://raw.githubusercontent.com/navidrome/navidrome/master/.github/screenshots/ss-mobile-player.png
+  - https://raw.githubusercontent.com/navidrome/navidrome/master/.github/screenshots/ss-mobile-album-view.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "4533"
+    required: true
+  - key: MUSIC_PATH
+    label: Music folder
+    type: path
+    default: /srv/media/music
+    required: true
+compose: |
+  services:
+    navidrome:
+      image: deluan/navidrome:latest
+      restart: unless-stopped
+      user: "${PUID}:${PGID}"
+      ports:
+        - "${WEB_PORT}:4533"
+      volumes:
+        - ${APP_DATA}/data:/data
+        - ${MUSIC_PATH}:/music:ro

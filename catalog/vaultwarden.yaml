@@ -1,0 +1,34 @@
+id: vaultwarden
+name: Vaultwarden
+category: Security
+tagline: Password manager that works with the Bitwarden apps
+description: A lightweight server for the official Bitwarden browser extensions and phone apps.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/vaultwarden.png
+website: https://github.com/dani-garcia/vaultwarden
+version: "1.34.1"
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+notes: Browsers only allow the Vaultwarden web vault over HTTPS (or on localhost). Use it behind a reverse proxy with HTTPS or via Tailscale. Turn off sign-ups after you create your account.
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8081"
+    required: true
+  - key: SIGNUPS_ALLOWED
+    label: Allow new sign-ups
+    type: select
+    options: ["true", "false"]
+    default: "true"
+compose: |
+  services:
+    vaultwarden:
+      image: vaultwarden/server:1.34.1
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:80"
+      volumes:
+        - ${APP_DATA}/data:/data
+      environment:
+        SIGNUPS_ALLOWED: ${SIGNUPS_ALLOWED}
+        TZ: ${TZ}

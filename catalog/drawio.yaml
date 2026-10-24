@@ -1,0 +1,23 @@
+id: drawio
+name: draw.io
+category: Productivity
+tagline: "Diagrams and flowcharts in your browser"
+description: "A full diagramming tool for flowcharts, network maps and UML, with drawings saved wherever you choose."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/draw-io.png
+website: https://www.drawio.com
+version: "latest"
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8092"
+    required: true
+compose: |
+  services:
+    drawio:
+      image: jgraph/drawio:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8080"

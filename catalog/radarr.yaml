@@ -1,0 +1,36 @@
+id: radarr
+name: Radarr
+category: Downloads
+tagline: Automatically find and organise movies
+description: Keeps track of movies you want and sends them to your download client.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/radarr.png
+website: https://radarr.video
+version: latest
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "7878"
+    required: true
+  - key: MEDIA_PATH
+    label: Media folder
+    type: path
+    default: /srv/media
+    required: true
+    description: Mounted at /data. Keep movies and downloads under this one folder.
+compose: |
+  services:
+    radarr:
+      image: lscr.io/linuxserver/radarr:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:7878"
+      volumes:
+        - ${APP_DATA}/config:/config
+        - ${MEDIA_PATH}:/data
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}

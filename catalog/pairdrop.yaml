@@ -1,0 +1,31 @@
+id: pairdrop
+name: PairDrop
+category: Files
+tagline: "Send files between devices on your network"
+description: "Drop a file on one device and it appears on another, like AirDrop for any phone or computer."
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/pairdrop.png
+website: https://pairdrop.net
+version: "latest"
+archs: [amd64, arm64]
+screenshots:
+  - https://raw.githubusercontent.com/schlagmichdoch/PairDrop/master/docs/pairdrop_screenshot_mobile.gif
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "3020"
+    required: true
+compose: |
+  services:
+    pairdrop:
+      image: lscr.io/linuxserver/pairdrop:latest
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:3000"
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}
+        RATE_LIMIT: "false"
+        WS_FALLBACK: "false"
