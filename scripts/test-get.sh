@@ -97,6 +97,10 @@ out="$(bash "$GET" explode 2>&1)"; code=$?
 check "an unknown command is refused" '[ $code -ne 0 ] && echo "$out" | grep -q "unknown command"'
 out="$(HAVEN_NO_ROOT_CHECK=1 bash "$GET" 2>&1)"; code=$?
 check "an unpublished copy says what to do" '[ $code -ne 0 ] && echo "$out" | grep -q "not published by a release"'
+# The release workflow rewrites @REPO@ with sed. The "not published" check must survive that.
+published="$(sed 's#@REPO@#owner/name#' "$GET")"
+check "the published copy still trusts its own repository" '! printf "%s\n" "$published" | grep -q "!= \"owner/name\""'
+check "the published copy has the repository filled in" 'printf "%s\n" "$published" | grep -q "REPO=\"\${HAVEN_REPO:-owner/name}\""'
 out="$(HAVEN_NO_ROOT_CHECK=1 HAVEN_REPO=nonsense bash "$GET" 2>&1)"; code=$?
 check "a bad repository name is refused" '[ $code -ne 0 ] && echo "$out" | grep -q "owner/name"'
 if [ "$(id -u)" -ne 0 ]; then

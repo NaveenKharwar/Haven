@@ -19,6 +19,7 @@
 set -euo pipefail
 
 # The release process replaces @REPO@ with the repository that published this file.
+# (Only on the next line: the check further down is written so it isn't rewritten as well.)
 REPO="${HAVEN_REPO:-@REPO@}"
 VERSION="${HAVEN_VERSION:-latest}"
 ACTION="${1:-install}"
@@ -41,7 +42,7 @@ esac
 if [ -n "${HAVEN_BASE_URL:-}" ]; then
   BASE="$HAVEN_BASE_URL"                                  # used by the tests
 else
-  [ "$REPO" != "@REPO@" ] || die "this copy of get.sh was not published by a release. Download it from the Releases page, or set HAVEN_REPO=owner/name"
+  [ "$REPO" != "@""REPO@" ] || die "this copy of get.sh was not published by a release. Download it from the Releases page, or set HAVEN_REPO=owner/name"
   case "$REPO" in */*) ;; *) die "HAVEN_REPO must look like owner/name" ;; esac
   if [ "$VERSION" = "latest" ]; then
     BASE="https://github.com/$REPO/releases/latest/download"
