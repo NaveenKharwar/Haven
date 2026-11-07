@@ -25,7 +25,7 @@ settings:
 compose: |
   services:
     bazarr:
-      image: lscr.io/linuxserver/bazarr:latest
+      image: lscr.io/linuxserver/bazarr:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:6767"

@@ -17,7 +17,7 @@ settings:
 compose: |
   services:
     cyberchef:
-      image: ghcr.io/gchq/cyberchef:latest
+      image: ghcr.io/gchq/cyberchef:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:8080"

@@ -23,7 +23,7 @@ settings:
 compose: |
   services:
     radarr:
-      image: lscr.io/linuxserver/radarr:latest
+      image: lscr.io/linuxserver/radarr:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:7878"

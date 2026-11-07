@@ -27,7 +27,7 @@ settings:
 compose: |
   services:
     gitea:
-      image: gitea/gitea:1
+      image: gitea/gitea:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:3000"

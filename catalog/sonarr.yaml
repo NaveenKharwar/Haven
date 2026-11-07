@@ -23,7 +23,7 @@ settings:
 compose: |
   services:
     sonarr:
-      image: lscr.io/linuxserver/sonarr:latest
+      image: lscr.io/linuxserver/sonarr:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:8989"

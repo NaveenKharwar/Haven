@@ -7,6 +7,7 @@ import { UsageCells, cpuText, diskText, fmtCpu, memText } from './usage'
 import { SettingField } from './Store'
 import { DiagnosisView } from './diagnosis'
 import type { Diagnosis } from './api'
+import { VersionPicker } from './VersionPicker'
 
 function useAppAction() {
   const { openJob, refreshApps } = useHaven()
@@ -262,7 +263,7 @@ export function AppDrawer({ id, onClose }: { id: string | null; onClose: () => v
   const tabs: { id: Tab; label: string; show: boolean }[] = [
     { id: 'overview', label: 'Overview', show: true },
     { id: 'logs', label: 'Logs', show: manage },
-    { id: 'settings', label: 'Settings', show: manage && !app.custom && !!detail?.settings?.length },
+    { id: 'settings', label: 'Settings', show: manage },
     { id: 'diagnose', label: 'Diagnose', show: manage },
     { id: 'compose', label: 'Compose', show: manage },
   ]
@@ -284,8 +285,18 @@ export function AppDrawer({ id, onClose }: { id: string | null; onClose: () => v
           <AppIcon src={app.icon} name={app.name} size={56} />
           <div className="min-w-0">
             <h2 className="truncate text-2xl font-semibold tracking-tight">{app.name}</h2>
-            <p className="font-mono text-xs text-muted">
-              {app.custom ? 'custom compose app' : `version ${app.version}`} · {app.id}
+            <p className="flex items-center gap-2 font-mono text-xs text-muted">
+              <span>{app.custom ? 'custom compose app' : `version ${app.version}`} · {app.id}</span>
+              {manage && (
+                <button
+                  type="button"
+                  onClick={() => setTab('settings')}
+                  className="underline decoration-rule-hi underline-offset-2 hover:text-ink cursor-pointer"
+                  title="Change version"
+                >
+                  Change
+                </button>
+              )}
             </p>
           </div>
         </div>
@@ -400,7 +411,14 @@ export function AppDrawer({ id, onClose }: { id: string | null; onClose: () => v
         )}
         {tab === 'logs' && <LogsView key={app.id} load={() => api.logs(app.id).then((r) => r.logs)} />}
         {tab === 'diagnose' && <DiagnoseTab key={app.id} id={app.id} />}
-        {tab === 'settings' && detail?.settings && <SettingsTab app={app} settings={detail.settings} env={detail.env} onSaved={() => api.app(app.id).then(setDetail)} />}
+        {tab === 'settings' && (
+          <SettingsTab
+            app={app}
+            settings={detail?.settings || []}
+            env={detail?.env || {}}
+            onSaved={() => api.app(app.id).then(setDetail)}
+          />
+        )}
         {tab === 'compose' && (
           <div className="space-y-3">
             <p className="text-sm text-ink-2">
@@ -417,16 +435,26 @@ export function AppDrawer({ id, onClose }: { id: string | null; onClose: () => v
 }
 
 function SettingsTab({ app, settings, env, onSaved }: { app: InstalledApp; settings: Setting[]; env: Record<string, string>; onSaved: () => void }) {
-  const { openJob, refreshApps } = useHaven()
+  const { openJob, refreshApps, catalog } = useHaven()
   const initial = () => Object.fromEntries(settings.map((s) => [s.key, env[s.key] ?? '']))
   const [values, setValues] = useState<Record<string, string>>(initial)
+  const currentVersion = app.version || env.APP_VERSION || ''
+  const [version, setVersion] = useState(currentVersion)
+  const [versionValid, setVersionValid] = useState(true)
   const [busy, setBusy] = useState(false)
-  const changed = settings.some((s) => (values[s.key] ?? '') !== (env[s.key] ?? ''))
+
+  const catalogItem = catalog.find((c) => c.id === app.catalogId)
+  const defaultVersion = catalogItem?.version || currentVersion || 'latest'
+
+  const versionChanged = version.trim() !== currentVersion.trim()
+  const settingsChanged = settings.some((s) => (values[s.key] ?? '') !== (env[s.key] ?? ''))
+  const changed = versionChanged || settingsChanged
+
   const save = async () => {
     setBusy(true)
     try {
       const diff = Object.fromEntries(settings.filter((s) => values[s.key] !== env[s.key]).map((s) => [s.key, values[s.key]]))
-      const job = await api.reconfigure(app.id, diff)
+      const job = await api.reconfigure(app.id, diff, versionChanged ? version.trim() : undefined)
       openJob(job.id, app.name)
       refreshApps()
       onSaved()
@@ -439,16 +467,44 @@ function SettingsTab({ app, settings, env, onSaved }: { app: InstalledApp; setti
   return (
     <div className="space-y-5">
       <p className="text-sm text-ink-2">Saving restarts the app. If it doesn't come back healthy, Haven puts the old settings back.</p>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {settings.map((s) => (
-          <SettingField key={s.key} setting={s} value={values[s.key] ?? ''} onChange={(v) => setValues((x) => ({ ...x, [s.key]: v }))} />
-        ))}
-      </div>
+
+      {!app.custom && (
+        <div className="plate p-4">
+          <VersionPicker
+            appId={app.id}
+            catalogId={app.catalogId}
+            value={version}
+            defaultVersion={defaultVersion}
+            currentVersion={currentVersion}
+            disabled={busy}
+            onChange={(v, isValid) => {
+              setVersion(v)
+              setVersionValid(isValid)
+            }}
+          />
+        </div>
+      )}
+
+      {settings.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {settings.map((s) => (
+            <SettingField key={s.key} setting={s} value={values[s.key] ?? ''} onChange={(v) => setValues((x) => ({ ...x, [s.key]: v }))} />
+          ))}
+        </div>
+      )}
       <div className="flex justify-end gap-2">
-        <button className="key" disabled={!changed || busy} onClick={() => setValues(initial())}>
+        <button
+          className="key"
+          disabled={!changed || busy}
+          onClick={() => {
+            setValues(initial())
+            setVersion(currentVersion)
+            setVersionValid(true)
+          }}
+        >
           Reset
         </button>
-        <button className="key key-primary" disabled={!changed || busy} data-loading={busy} onClick={save}>
+        <button className="key key-primary" disabled={!changed || busy || !versionValid || !version.trim()} data-loading={busy} onClick={save}>
           Save and restart
         </button>
       </div>

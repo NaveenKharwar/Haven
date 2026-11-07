@@ -19,7 +19,7 @@ settings:
 compose: |
   services:
     freshrss:
-      image: lscr.io/linuxserver/freshrss:latest
+      image: lscr.io/linuxserver/freshrss:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:80"

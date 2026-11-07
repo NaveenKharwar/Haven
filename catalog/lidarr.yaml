@@ -23,7 +23,7 @@ settings:
 compose: |
   services:
     lidarr:
-      image: lscr.io/linuxserver/lidarr:latest
+      image: lscr.io/linuxserver/lidarr:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:8686"

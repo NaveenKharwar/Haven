@@ -6,11 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Server struct {
@@ -58,6 +61,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/auth/setup", s.setup)
 	mux.HandleFunc("POST /api/auth/login", s.login)
 	mux.HandleFunc("POST /api/auth/logout", s.logout)
+	mux.HandleFunc("POST /api/auth/reset-request", s.resetRequest)
+	mux.HandleFunc("POST /api/auth/reset-password", s.resetPassword)
 	mux.HandleFunc("POST /api/auth/tv/start", s.tvStart)
 	mux.HandleFunc("POST /api/auth/tv/poll", s.tvPoll)
 
@@ -67,12 +72,16 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/auth/tv/approve", auth(s.tvApprove))
 	mux.Handle("GET /api/system", auth(s.system))
 	mux.Handle("GET /api/catalog", s.need(RoleManager, s.listCatalog))
+	mux.Handle("GET /api/catalog/{id}/versions", s.need(RoleManager, s.getCatalogVersions))
 	mux.Handle("POST /api/preflight", s.need(RoleManager, s.preflight))
+	mux.Handle("POST /api/check-version", s.need(RoleManager, s.checkVersion))
 	mux.Handle("GET /api/apps", auth(s.listApps))
 	mux.Handle("POST /api/apps", s.need(RoleManager, s.installApp))
 	mux.Handle("POST /api/apps/custom", s.need(RoleAdmin, s.installCustom))
 	mux.Handle("GET /api/apps/{id}", s.need(RoleManager, s.getApp))
+	mux.Handle("GET /api/apps/{id}/versions", s.need(RoleManager, s.getAppVersions))
 	mux.Handle("PUT /api/apps/{id}/settings", s.need(RoleManager, s.reconfigure))
+	mux.Handle("PUT /api/apps/{id}/version", s.need(RoleManager, s.changeAppVersion))
 	mux.Handle("GET /api/apps/{id}/logs", s.need(RoleManager, s.appLogs))
 	mux.Handle("POST /api/apps/{id}/{action}", s.need(RoleMember, s.appAction))
 	mux.Handle("DELETE /api/apps/{id}", s.need(RoleManager, s.uninstall))
@@ -357,6 +366,53 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+func (s *Server) resetRequest(w http.ResponseWriter, r *http.Request) {
+	ip := clientIP(r)
+	if blocked, left := s.limiter.Blocked(ip); blocked {
+		jsonError(w, http.StatusTooManyRequests, fmt.Sprintf("too many attempts, try again in %d seconds", int(left.Seconds())+1))
+		return
+	}
+	token, err := s.store.RequestResetToken()
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	log.Printf("Password reset code generated: %s (written to reset-token file)", token)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"message": "A reset code has been generated on the server at /opt/haven/reset-token (valid for 15 minutes).",
+	})
+}
+
+func (s *Server) resetPassword(w http.ResponseWriter, r *http.Request) {
+	ip := clientIP(r)
+	if blocked, left := s.limiter.Blocked(ip); blocked {
+		jsonError(w, http.StatusTooManyRequests, fmt.Sprintf("too many failed attempts, try again in %d seconds", int(left.Seconds())+1))
+		return
+	}
+	var req struct {
+		Token    string `json:"token"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := readJSON(r, &req); err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	user := strings.TrimSpace(req.Username)
+	token := strings.TrimSpace(req.Token)
+	if err := s.store.ResetPasswordWithToken(token, user, req.Password); err != nil {
+		s.limiter.Fail(ip)
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.limiter.Success(ip)
+	s.sessions.DeleteUserExcept(user, "")
+	setSessionCookie(w, r, s.sessions.Create(user), int(sessionTTL.Seconds()))
+	log.Printf("Password reset successfully for %q from %s", user, ip)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "username": user})
+}
+
 func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 	var req struct{ Current, New string }
 	if err := readJSON(r, &req); err != nil {
@@ -431,10 +487,208 @@ func (s *Server) listCatalog(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.catalog.All())
 }
 
+func (s *Server) getCatalogVersions(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	app, ok := s.catalog.Get(id)
+	if !ok {
+		jsonError(w, http.StatusNotFound, "app not found")
+		return
+	}
+	res := map[string]any{
+		"default": app.Version,
+		"latest":  "latest",
+		"recent":  []string{},
+		"all":     []string{},
+	}
+	refStr, ok := app.MainImageRef(app.Version)
+	if !ok || s.updates == nil || s.updates.reg == nil {
+		writeJSON(w, http.StatusOK, res)
+		return
+	}
+	ref, ok := parseImageRef(refStr)
+	if !ok {
+		writeJSON(w, http.StatusOK, res)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	tags, err := s.updates.reg.Tags(ctx, ref)
+	if err != nil {
+		writeJSON(w, http.StatusOK, res)
+		return
+	}
+	res["all"] = tags
+	var recent []string
+	for _, t := range tags {
+		if t != "latest" && t != "stable" && t != app.Version {
+			recent = append(recent, t)
+			if len(recent) >= 3 {
+				break
+			}
+		}
+	}
+	res["recent"] = recent
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (s *Server) getAppVersions(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	meta, compose, _, err := s.apps.Get(id)
+	if err != nil {
+		jsonError(w, http.StatusNotFound, "app not found")
+		return
+	}
+	res := map[string]any{
+		"current": meta.Version,
+		"default": meta.Version,
+		"latest":  "latest",
+		"recent":  []string{},
+		"all":     []string{},
+	}
+	var refStr string
+	if ca, ok := s.catalog.Get(meta.CatalogID); ok {
+		res["default"] = ca.Version
+		refStr, _ = ca.MainImageRef(meta.Version)
+	} else {
+		var doc struct {
+			Services map[string]map[string]any `yaml:"services"`
+		}
+		if yaml.Unmarshal([]byte(compose), &doc) == nil {
+			for _, svc := range doc.Services {
+				if img, ok := svc["image"].(string); ok && img != "" {
+					refStr = img
+					break
+				}
+			}
+		}
+	}
+	if refStr == "" || s.updates == nil || s.updates.reg == nil {
+		writeJSON(w, http.StatusOK, res)
+		return
+	}
+	ref, ok := parseImageRef(refStr)
+	if !ok {
+		writeJSON(w, http.StatusOK, res)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	tags, err := s.updates.reg.Tags(ctx, ref)
+	if err != nil {
+		writeJSON(w, http.StatusOK, res)
+		return
+	}
+	res["all"] = tags
+	var recent []string
+	defVer, _ := res["default"].(string)
+	for _, t := range tags {
+		if t != "latest" && t != "stable" && t != meta.Version && t != defVer {
+			recent = append(recent, t)
+			if len(recent) >= 3 {
+				break
+			}
+		}
+	}
+	res["recent"] = recent
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (s *Server) checkVersion(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		CatalogID string `json:"catalogId"`
+		AppID     string `json:"appId"`
+		Version   string `json:"version"`
+	}
+	if err := readJSON(r, &req); err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	v := strings.TrimSpace(req.Version)
+	if err := validateAppVersion(v); err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid":  false,
+			"exists": false,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	var refStr string
+	if req.CatalogID != "" {
+		if ca, ok := s.catalog.Get(req.CatalogID); ok {
+			refStr, _ = ca.MainImageRef(v)
+		}
+	}
+	if refStr == "" && req.AppID != "" {
+		if meta, compose, _, err := s.apps.Get(req.AppID); err == nil {
+			if ca, ok := s.catalog.Get(meta.CatalogID); ok {
+				refStr, _ = ca.MainImageRef(v)
+			} else {
+				var doc struct {
+					Services map[string]map[string]any `yaml:"services"`
+				}
+				if yaml.Unmarshal([]byte(compose), &doc) == nil {
+					for _, svc := range doc.Services {
+						if img, ok := svc["image"].(string); ok && img != "" {
+							refStr = img
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if refStr == "" || s.updates == nil || s.updates.reg == nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid":   true,
+			"exists":  true,
+			"warning": "Could not determine registry to check tag existence",
+		})
+		return
+	}
+
+	ref, ok := parseImageRef(refStr)
+	if !ok {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid":   true,
+			"exists":  true,
+			"warning": "Could not parse image reference",
+		})
+		return
+	}
+	ref.tag = v
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	exists, err := s.updates.reg.CheckTag(ctx, ref)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid":   true,
+			"exists":  false,
+			"warning": "Could not verify version with registry: " + err.Error(),
+		})
+		return
+	}
+	if !exists {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid":  true,
+			"exists": false,
+			"error":  fmt.Sprintf("Version %q was not found in the registry", v),
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"valid":  true,
+		"exists": true,
+	})
+}
+
 func (s *Server) preflight(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CatalogID string            `json:"catalogId"`
 		ID        string            `json:"id"`
+		Version   string            `json:"version"`
 		Values    map[string]string `json:"values"`
 	}
 	if err := readJSON(r, &req); err != nil {
@@ -451,7 +705,7 @@ func (s *Server) preflight(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
-	writeJSON(w, http.StatusOK, map[string]any{"checks": s.apps.Preflight(ctx, app, req.ID, req.Values)})
+	writeJSON(w, http.StatusOK, map[string]any{"checks": s.apps.Preflight(ctx, app, req.ID, req.Version, req.Values)})
 }
 
 // --- apps -----------------------------------------------------------------
@@ -480,6 +734,7 @@ func (s *Server) installApp(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CatalogID string            `json:"catalogId"`
 		ID        string            `json:"id"`
+		Version   string            `json:"version"`
 		Values    map[string]string `json:"values"`
 	}
 	if err := readJSON(r, &req); err != nil {
@@ -492,7 +747,7 @@ func (s *Server) installApp(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	job, err := s.apps.Install(ctx, req.CatalogID, req.ID, req.Values)
+	job, err := s.apps.Install(ctx, req.CatalogID, req.ID, req.Version, req.Values)
 	if err != nil {
 		var ie *InstallError
 		if errors.As(err, &ie) {
@@ -539,7 +794,8 @@ func (s *Server) getApp(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) reconfigure(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Values map[string]string `json:"values"`
+		Values  map[string]string `json:"values"`
+		Version string            `json:"version"`
 	}
 	if err := readJSON(r, &req); err != nil {
 		jsonError(w, http.StatusBadRequest, err.Error())
@@ -551,7 +807,23 @@ func (s *Server) reconfigure(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	job, err := s.apps.Reconfigure(r.Context(), r.PathValue("id"), req.Values)
+	job, err := s.apps.Reconfigure(r.Context(), r.PathValue("id"), req.Values, req.Version)
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusAccepted, job.View(false))
+}
+
+func (s *Server) changeAppVersion(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Version string `json:"version"`
+	}
+	if err := readJSON(r, &req); err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	job, err := s.apps.Reconfigure(r.Context(), r.PathValue("id"), nil, req.Version)
 	if err != nil {
 		jsonError(w, http.StatusBadRequest, err.Error())
 		return

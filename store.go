@@ -44,10 +44,12 @@ type HostSettings struct {
 // Store keeps Haven's own small state (users) in a JSON file.
 // Writes are atomic (write temp file, then rename) so a crash never corrupts it.
 type Store struct {
-	mu         sync.Mutex
-	dir        string
-	st         state
-	setupToken string
+	mu            sync.Mutex
+	dir           string
+	st            state
+	setupToken    string
+	resetToken    string
+	resetTokenExp time.Time
 }
 
 var usernameRe = regexp.MustCompile(`^[a-zA-Z0-9_.-]{3,32}$`)
@@ -188,6 +190,99 @@ func (s *Store) ChangePassword(username, oldPw, newPw string) error {
 		}
 	}
 	return errors.New("user not found")
+}
+
+// RequestResetToken generates a one-time code to reset a forgotten password.
+// The code is valid for 15 minutes and written to reset-token on the server.
+func (s *Store) RequestResetToken() (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	buf := make([]byte, 4)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	s.resetToken = strings.ToUpper(hex.EncodeToString(buf))
+	s.resetTokenExp = time.Now().Add(15 * time.Minute)
+	file := filepath.Join(s.dir, "reset-token")
+	if err := os.WriteFile(file, []byte(s.resetToken+"\n"), 0o600); err != nil {
+		return "", err
+	}
+	return s.resetToken, nil
+}
+
+// ResetPasswordWithToken resets a user's password if the provided one-time
+// reset code matches and has not expired.
+func (s *Store) ResetPasswordWithToken(token, username, password string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// If in-memory token is empty or expired, check if a valid file exists on disk
+	if s.resetToken == "" || time.Now().After(s.resetTokenExp) {
+		file := filepath.Join(s.dir, "reset-token")
+		if fi, err := os.Stat(file); err == nil && time.Since(fi.ModTime()) < 15*time.Minute {
+			if b, rerr := os.ReadFile(file); rerr == nil {
+				diskTok := strings.TrimSpace(string(b))
+				if len(diskTok) >= 8 {
+					s.resetToken = diskTok
+					s.resetTokenExp = fi.ModTime().Add(15 * time.Minute)
+				}
+			}
+		}
+	}
+
+	if s.resetToken == "" || time.Now().After(s.resetTokenExp) {
+		return errors.New("reset code is invalid or has expired")
+	}
+	if subtle.ConstantTimeCompare([]byte(strings.ToUpper(strings.TrimSpace(token))), []byte(s.resetToken)) != 1 {
+		return errors.New("reset code is incorrect")
+	}
+	i := s.idx(username)
+	if i < 0 {
+		return errors.New("user not found")
+	}
+	if err := validatePassword(password); err != nil {
+		return err
+	}
+	h, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	old := s.snapshot()
+	s.st.Users[i].Hash = string(h)
+	if err := s.commit(old); err != nil {
+		return err
+	}
+	s.resetToken = ""
+	s.resetTokenExp = time.Time{}
+	_ = os.Remove(filepath.Join(s.dir, "reset-token"))
+	return nil
+}
+
+// DirectResetPassword directly resets a user's password without a token.
+// Intended for local CLI use by server operators.
+func (s *Store) DirectResetPassword(username, password string) error {
+	if err := validatePassword(password); err != nil {
+		return err
+	}
+	h, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := s.idx(username)
+	if i < 0 {
+		return errors.New("user not found")
+	}
+	old := s.snapshot()
+	s.st.Users[i].Hash = string(h)
+	if err := s.commit(old); err != nil {
+		return err
+	}
+	s.resetToken = ""
+	s.resetTokenExp = time.Time{}
+	_ = os.Remove(filepath.Join(s.dir, "reset-token"))
+	return nil
 }
 
 func (s *Store) Settings() HostSettings {

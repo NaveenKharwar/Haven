@@ -21,7 +21,7 @@ settings:
 compose: |
   services:
     stirling-pdf:
-      image: stirlingtools/stirling-pdf:latest
+      image: stirlingtools/stirling-pdf:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:8080"

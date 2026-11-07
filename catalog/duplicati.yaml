@@ -35,7 +35,7 @@ settings:
 compose: |
   services:
     duplicati:
-      image: lscr.io/linuxserver/duplicati:latest
+      image: lscr.io/linuxserver/duplicati:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:8200"

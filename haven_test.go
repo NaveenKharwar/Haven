@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -753,6 +754,8 @@ func TestCatalogComposeRendersWithDocker(t *testing.T) {
 		env.set("PUID", "1000")
 		env.set("PGID", "1000")
 		env.set("TZ", "UTC")
+		env.set("APP_VERSION", a.Version)
+		env.set("VERSION", a.Version)
 		for _, s := range a.Settings {
 			v := s.Default
 			if v == "" {
@@ -1569,5 +1572,251 @@ func TestAssetURLIgnoresRepoCase(t *testing.T) {
 	}
 	if _, err := u.assetURL(rel, "b"); err == nil {
 		t.Fatal("another repository was accepted")
+	}
+}
+
+func TestPasswordReset(t *testing.T) {
+	dir := t.TempDir()
+	s, err := LoadStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok, _ := s.EnsureSetupToken()
+	if err := s.Setup(tok, "admin", "initialpass123"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Request reset token
+	code, err := s.RequestResetToken()
+	if err != nil {
+		t.Fatalf("RequestResetToken: %v", err)
+	}
+	if len(code) != 8 {
+		t.Errorf("expected 8-char code, got %q", code)
+	}
+	// Verify reset-token file on disk
+	rf := filepath.Join(dir, "reset-token")
+	b, err := os.ReadFile(rf)
+	if err != nil || strings.TrimSpace(string(b)) != code {
+		t.Fatalf("reset-token file content %q does not match %q", string(b), code)
+	}
+
+	// Incorrect token fails
+	if err := s.ResetPasswordWithToken("WRONGTOK", "admin", "newpassword123"); err == nil {
+		t.Fatal("expected error for wrong token")
+	}
+	// Short password fails
+	if err := s.ResetPasswordWithToken(code, "admin", "short"); err == nil {
+		t.Fatal("expected error for short password")
+	}
+	// Nonexistent user fails
+	if err := s.ResetPasswordWithToken(code, "ghost", "newpassword123"); err == nil {
+		t.Fatal("expected error for nonexistent user")
+	}
+
+	// Valid token succeeds
+	if err := s.ResetPasswordWithToken(code, "admin", "newpassword123"); err != nil {
+		t.Fatalf("ResetPasswordWithToken failed: %v", err)
+	}
+	// Verify old password fails, new works
+	if s.CheckPassword("admin", "initialpass123") {
+		t.Fatal("old password should no longer work")
+	}
+	if !s.CheckPassword("admin", "newpassword123") {
+		t.Fatal("new password should work")
+	}
+	// Verify reset-token file was removed
+	if _, err := os.Stat(rf); !os.IsNotExist(err) {
+		t.Fatal("reset-token file should be removed after use")
+	}
+	// Single-use: code should now fail
+	if err := s.ResetPasswordWithToken(code, "admin", "anotherpass123"); err == nil {
+		t.Fatal("reusing token should fail")
+	}
+
+	// Direct reset (CLI)
+	if err := s.DirectResetPassword("admin", "directpass123"); err != nil {
+		t.Fatalf("DirectResetPassword failed: %v", err)
+	}
+	if !s.CheckPassword("admin", "directpass123") {
+		t.Fatal("direct reset password should work")
+	}
+}
+
+func TestPasswordResetHTTP(t *testing.T) {
+	hs, _, st := roleServer(t)
+
+	// Request reset code via HTTP
+	req, _ := http.NewRequest("POST", hs.URL+"/api/auth/reset-request", nil)
+	req.Header.Set("X-Haven", "1")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("reset-request returned status %d", resp.StatusCode)
+	}
+
+	// Check reset token was generated on store
+	st.mu.Lock()
+	token := st.resetToken
+	st.mu.Unlock()
+	if token == "" {
+		t.Fatal("reset token was not generated on store")
+	}
+
+	// Submit reset password via HTTP
+	body := fmt.Sprintf(`{"token":%q,"username":"boss","password":"brandnewpassword123"}`, token)
+	req2, _ := http.NewRequest("POST", hs.URL+"/api/auth/reset-password", strings.NewReader(body))
+	req2.Header.Set("X-Haven", "1")
+	req2.Header.Set("Content-Type", "application/json")
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusOK {
+		t.Fatalf("reset-password returned status %d", resp2.StatusCode)
+	}
+	// Should have set session cookie
+	if len(resp2.Cookies()) == 0 {
+		t.Fatal("expected session cookie after reset password")
+	}
+
+	// Verify boss's new password works
+	if !st.CheckPassword("boss", "brandnewpassword123") {
+		t.Fatal("new password not saved in store")
+	}
+}
+
+func TestAppVersionValidationAndCustomVersion(t *testing.T) {
+	// validateAppVersion
+	valid := []string{"10.10.7", "v3.29.0", "latest", "latest-full", "31-apache", "0.27.1_beta.1"}
+	for _, v := range valid {
+		if err := validateAppVersion(v); err != nil {
+			t.Errorf("validateAppVersion(%q) returned error: %v", v, err)
+		}
+	}
+	invalid := []string{"", " ", "bad tag!", "tag with spaces", "tag;rm -rf", "tag\ntag", "tag'quote"}
+	for _, v := range invalid {
+		if err := validateAppVersion(v); err == nil {
+			t.Errorf("validateAppVersion(%q) should have failed", v)
+		}
+	}
+}
+
+func TestPreflightVersionValidation(t *testing.T) {
+	cat, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	app, ok := cat.Get("jellyfin")
+	if !ok {
+		t.Fatal("jellyfin not found in catalog")
+	}
+	dir := t.TempDir()
+	m := NewManager(dir, &Docker{}, cat, NewJobs())
+
+	// Valid custom version
+	checks := m.Preflight(context.Background(), app, "jellyfin-test", "10.10.8", nil)
+	var verCheck *Check
+	for i := range checks {
+		if checks[i].Name == "Version" {
+			verCheck = &checks[i]
+		}
+	}
+	if verCheck == nil || verCheck.Level != "ok" || verCheck.Message != "10.10.8" {
+		t.Fatalf("expected version check ok, got %+v", verCheck)
+	}
+
+	// Invalid version (spaces or bad chars)
+	badChecks := m.Preflight(context.Background(), app, "jellyfin-test", "invalid tag!", nil)
+	verCheck = nil
+	for i := range badChecks {
+		if badChecks[i].Name == "Version" {
+			verCheck = &badChecks[i]
+		}
+	}
+	if verCheck == nil || verCheck.Level != "fail" {
+		t.Fatalf("expected version check fail for bad version, got %+v", verCheck)
+	}
+}
+
+func TestCatalogVersionsAndCheckVersionEndpoints(t *testing.T) {
+	hs, clients, _ := roleServer(t)
+	client := clients["mia"] // manager role
+
+	// 1. GET /api/catalog/jellyfin/versions
+	req, _ := http.NewRequest(http.MethodGet, hs.URL+"/api/catalog/jellyfin/versions", nil)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("catalog versions returned status %d", resp.StatusCode)
+	}
+	var verData struct {
+		Default string   `json:"default"`
+		Latest  string   `json:"latest"`
+		Recent  []string `json:"recent"`
+		All     []string `json:"all"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&verData); err != nil {
+		t.Fatal(err)
+	}
+	if verData.Default == "" || verData.Latest != "latest" {
+		t.Fatalf("unexpected verData: %+v", verData)
+	}
+
+	// 2. POST /api/check-version with invalid tag
+	bodyInvalid := strings.NewReader(`{"catalogId":"jellyfin","version":"invalid tag with space"}`)
+	req, _ = http.NewRequest(http.MethodPost, hs.URL+"/api/check-version", bodyInvalid)
+	req.Header.Set("X-Haven", "1")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err = client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("check-version returned status %d", resp.StatusCode)
+	}
+	var checkRes struct {
+		Valid  bool   `json:"valid"`
+		Exists bool   `json:"exists"`
+		Error  string `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&checkRes); err != nil {
+		t.Fatal(err)
+	}
+	if checkRes.Valid || checkRes.Exists || checkRes.Error == "" {
+		t.Fatalf("expected invalid tag error, got %+v", checkRes)
+	}
+
+	// 3. POST /api/check-version with valid tag
+	bodyValid := strings.NewReader(`{"catalogId":"jellyfin","version":"10.9.11"}`)
+	req, _ = http.NewRequest(http.MethodPost, hs.URL+"/api/check-version", bodyValid)
+	req.Header.Set("X-Haven", "1")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err = client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("check-version returned status %d", resp.StatusCode)
+	}
+	var validRes struct {
+		Valid   bool   `json:"valid"`
+		Exists  bool   `json:"exists"`
+		Warning string `json:"warning"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&validRes); err != nil {
+		t.Fatal(err)
+	}
+	if !validRes.Valid {
+		t.Fatalf("expected tag syntax to be valid, got %+v", validRes)
 	}
 }

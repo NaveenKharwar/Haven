@@ -15,7 +15,7 @@ settings: []
 compose: |
   services:
     homeassistant:
-      image: ghcr.io/home-assistant/home-assistant:stable
+      image: ghcr.io/home-assistant/home-assistant:${APP_VERSION}
       restart: unless-stopped
       network_mode: host
       volumes:

@@ -28,7 +28,7 @@ settings:
 compose: |
   services:
     linkding:
-      image: sissbruecker/linkding:1.47.0
+      image: sissbruecker/linkding:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:9090"

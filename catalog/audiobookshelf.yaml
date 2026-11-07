@@ -29,7 +29,7 @@ settings:
 compose: |
   services:
     audiobookshelf:
-      image: ghcr.io/advplyr/audiobookshelf:latest
+      image: ghcr.io/advplyr/audiobookshelf:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:80"

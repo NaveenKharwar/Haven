@@ -57,7 +57,7 @@ type CatalogApp struct {
 }
 
 // Variables Haven always provides to every app.
-var builtinVars = map[string]bool{"APP_DATA": true, "PUID": true, "PGID": true, "TZ": true}
+var builtinVars = map[string]bool{"APP_DATA": true, "PUID": true, "PGID": true, "TZ": true, "APP_VERSION": true, "VERSION": true}
 
 var (
 	appIDRe      = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,30}$`)
@@ -119,6 +119,32 @@ func (a *CatalogApp) Setting(key string) *Setting {
 		}
 	}
 	return nil
+}
+
+// MainImageRef returns the resolved image reference of the primary service in the catalog app.
+func (a *CatalogApp) MainImageRef(version string) (string, bool) {
+	if version == "" {
+		version = a.Version
+	}
+	var doc struct {
+		Services map[string]map[string]any `yaml:"services"`
+	}
+	if err := yaml.Unmarshal([]byte(a.Compose), &doc); err != nil {
+		return "", false
+	}
+	var best string
+	for name, svc := range doc.Services {
+		img, _ := svc["image"].(string)
+		if img == "" {
+			continue
+		}
+		img = strings.ReplaceAll(img, "${APP_VERSION}", version)
+		img = strings.ReplaceAll(img, "${VERSION}", version)
+		if name == a.ID || best == "" {
+			best = img
+		}
+	}
+	return best, best != ""
 }
 
 // validateCatalogApp catches broken catalog entries when Haven starts (and

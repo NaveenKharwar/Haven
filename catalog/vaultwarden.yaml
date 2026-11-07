@@ -23,7 +23,7 @@ settings:
 compose: |
   services:
     vaultwarden:
-      image: vaultwarden/server:1.34.1
+      image: vaultwarden/server:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:80"

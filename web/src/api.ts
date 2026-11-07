@@ -89,6 +89,21 @@ export type Job = {
   help?: { title: string; why: string; fix: string; command?: string }
 }
 
+export type VersionInfo = {
+  current?: string
+  default: string
+  latest: string
+  recent: string[]
+  all: string[]
+}
+
+export type VersionCheckResult = {
+  valid: boolean
+  exists: boolean
+  error?: string
+  warning?: string
+}
+
 export type DiskInfo = { mount: string; device: string; fstype: string; total: number; used: number; free: number; percent: number }
 export type Point = { t: number; cpu: number; mem: number; rx: number; tx: number }
 export type SystemInfo = {
@@ -336,19 +351,30 @@ export const api = {
   setup: (token: string, username: string, password: string) => request('POST', '/api/auth/setup', { token, username, password }),
   login: (username: string, password: string) => request('POST', '/api/auth/login', { username, password }),
   logout: () => request('POST', '/api/auth/logout'),
+  resetRequest: () => request<{ ok: boolean; message: string }>('POST', '/api/auth/reset-request'),
+  resetPassword: (token: string, username: string, password: string) =>
+    request<{ ok: boolean; username: string }>('POST', '/api/auth/reset-password', { token, username, password }),
   changePassword: (current: string, next: string) => request('POST', '/api/auth/password', { current, new: next }),
   system: () => request<SystemInfo>('GET', '/api/system'),
   catalog: () => request<CatalogApp[]>('GET', '/api/catalog'),
-  preflight: (catalogId: string, id: string, values: Record<string, string>) =>
-    request<{ checks: Check[] }>('POST', '/api/preflight', { catalogId, id, values }),
+  catalogVersions: (id: string) => request<VersionInfo>('GET', `/api/catalog/${id}/versions`),
+  appVersions: (id: string) => request<VersionInfo>('GET', `/api/apps/${id}/versions`),
+  checkVersion: (body: { catalogId?: string; appId?: string; version: string }) =>
+    request<VersionCheckResult>('POST', '/api/check-version', body),
+  preflight: (catalogId: string, id: string, values: Record<string, string>, version?: string) =>
+    request<{ checks: Check[] }>('POST', '/api/preflight', { catalogId, id, values, version }),
   apps: () => request<{ apps: InstalledApp[]; containers: Container[]; dockerError?: string }>('GET', '/api/apps'),
   app: (id: string) =>
     request<{ meta: InstalledApp; compose: string; env: Record<string, string>; settings?: Setting[] }>('GET', `/api/apps/${id}`),
-  install: (catalogId: string, id: string, values: Record<string, string>) => request<Job>('POST', '/api/apps', { catalogId, id, values }),
+  install: (catalogId: string, id: string, values: Record<string, string>, version?: string) =>
+    request<Job>('POST', '/api/apps', { catalogId, id, values, version }),
   installCustom: (id: string, name: string, compose: string, webPort: string) =>
     request<Job>('POST', '/api/apps/custom', { id, name, compose, webPort }),
   action: (id: string, action: 'start' | 'stop' | 'restart' | 'update') => request<Job>('POST', `/api/apps/${id}/${action}`),
-  reconfigure: (id: string, values: Record<string, string>) => request<Job>('PUT', `/api/apps/${id}/settings`, { values }),
+  reconfigure: (id: string, values: Record<string, string>, version?: string) =>
+    request<Job>('PUT', `/api/apps/${id}/settings`, { values, version }),
+  changeVersion: (id: string, version: string) =>
+    request<Job>('PUT', `/api/apps/${id}/version`, { version }),
   uninstall: (id: string, removeData: boolean) => request<Job>('DELETE', `/api/apps/${id}${removeData ? '?removeData=1' : ''}`),
   logs: (id: string, tail = 300) => request<{ logs: string }>('GET', `/api/apps/${id}/logs?tail=${tail}`),
   containerAction: (id: string, action: 'start' | 'stop' | 'restart') => request('POST', `/api/containers/${id}/${action}`),

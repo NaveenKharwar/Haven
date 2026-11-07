@@ -64,7 +64,7 @@ compose: |
         timeout: 5s
         retries: 12
     webserver:
-      image: ghcr.io/paperless-ngx/paperless-ngx:latest
+      image: ghcr.io/paperless-ngx/paperless-ngx:${APP_VERSION}
       restart: unless-stopped
       depends_on:
         db:

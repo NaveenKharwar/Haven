@@ -19,7 +19,7 @@ settings:
 compose: |
   services:
     ollama:
-      image: ollama/ollama:latest
+      image: ollama/ollama:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:11434"

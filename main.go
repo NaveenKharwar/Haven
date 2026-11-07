@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"embed"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -29,9 +31,35 @@ func main() {
 	addr := flag.String("addr", ":8484", "address to listen on")
 	dataDir := flag.String("data", "/opt/haven", "directory for Haven's state and apps")
 	showVersion := flag.Bool("version", false, "print the version and exit")
+	resetPassUser := flag.String("reset-password", "", "reset password for user (e.g. -reset-password admin)")
+	resetTokenCmd := flag.Bool("reset-token", false, "generate a one-time password reset code")
+
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "reset-password":
+			user := ""
+			if len(os.Args) > 2 {
+				user = os.Args[2]
+			}
+			runResetPassword(*dataDir, user)
+			return
+		case "reset-token":
+			runResetToken(*dataDir)
+			return
+		}
+	}
+
 	flag.Parse()
 	if *showVersion {
 		fmt.Printf("haven %s\n", Version)
+		return
+	}
+	if *resetTokenCmd {
+		runResetToken(*dataDir)
+		return
+	}
+	if *resetPassUser != "" {
+		runResetPassword(*dataDir, *resetPassUser)
 		return
 	}
 
@@ -159,4 +187,70 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = httpSrv.Shutdown(ctx)
+}
+
+func runResetToken(dataDir string) {
+	dir, err := filepath.Abs(dataDir)
+	if err != nil {
+		log.Fatalf("bad data dir: %v", err)
+	}
+	store, err := LoadStore(dir)
+	if err != nil {
+		log.Fatalf("cannot load state: %v", err)
+	}
+	if store.NeedsSetup() {
+		fmt.Println("Server is not set up yet. Start Haven and complete initial setup.")
+		return
+	}
+	token, err := store.RequestResetToken()
+	if err != nil {
+		log.Fatalf("cannot create reset token: %v", err)
+	}
+	fmt.Printf("Password reset code: %s\n", token)
+	fmt.Printf("Saved to: %s (valid for 15 minutes)\n", filepath.Join(dir, "reset-token"))
+	fmt.Println("Use this code on the Haven sign-in page under 'Forgot password?'.")
+}
+
+func runResetPassword(dataDir, user string) {
+	dir, err := filepath.Abs(dataDir)
+	if err != nil {
+		log.Fatalf("bad data dir: %v", err)
+	}
+	store, err := LoadStore(dir)
+	if err != nil {
+		log.Fatalf("cannot load state: %v", err)
+	}
+	if store.NeedsSetup() {
+		fmt.Println("Server is not set up yet. Start Haven and complete initial setup.")
+		return
+	}
+	if user == "" {
+		for _, u := range store.People() {
+			if u.Role == RoleAdmin {
+				user = u.Username
+				break
+			}
+		}
+		if user == "" {
+			people := store.People()
+			if len(people) > 0 {
+				user = people[0].Username
+			} else {
+				log.Fatal("no users found")
+			}
+		}
+	}
+	fmt.Printf("Enter new password for %q (min 8 chars): ", user)
+	reader := bufio.NewReader(os.Stdin)
+	pw, err := reader.ReadString('\n')
+	if err != nil {
+		log.Fatalf("could not read password: %v", err)
+	}
+	pw = strings.TrimRight(pw, "\r\n")
+	if err := store.DirectResetPassword(user, pw); err != nil {
+		log.Fatalf("could not reset password: %v", err)
+	}
+	sessions := NewSessions(filepath.Join(dir, "sessions.json"))
+	sessions.DeleteUserExcept(user, "")
+	fmt.Printf("Password for user %q has been reset successfully.\n", user)
 }

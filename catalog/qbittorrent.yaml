@@ -29,7 +29,7 @@ settings:
 compose: |
   services:
     qbittorrent:
-      image: lscr.io/linuxserver/qbittorrent:latest
+      image: lscr.io/linuxserver/qbittorrent:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:${WEB_PORT}"

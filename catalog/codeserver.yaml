@@ -26,7 +26,7 @@ settings:
 compose: |
   services:
     code-server:
-      image: lscr.io/linuxserver/code-server:latest
+      image: lscr.io/linuxserver/code-server:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:8443"

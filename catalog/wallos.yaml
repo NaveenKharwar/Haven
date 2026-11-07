@@ -22,7 +22,7 @@ settings:
 compose: |
   services:
     wallos:
-      image: bellamy/wallos:5.10.2
+      image: bellamy/wallos:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:80"

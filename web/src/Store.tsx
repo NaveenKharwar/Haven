@@ -4,6 +4,7 @@ import { api, ApiError, type CatalogApp, type Check, type Setting } from './api'
 import { AppIcon, ChecksList, Drawer, ErrorLine, Led, Modal, Notice, Spinner, cx, toast } from './components'
 import { useHaven } from './context'
 import { PasswordInput } from './Auth'
+import { VersionPicker } from './VersionPicker'
 
 export default function CatalogPage() {
   const { catalog, apps } = useHaven()
@@ -135,6 +136,8 @@ function InstallSheet({ app, onClose }: { app: CatalogApp; onClose: () => void }
   const { apps, openJob, refreshApps } = useHaven()
   const taken = apps.some((a) => a.id === app.id)
   const [id, setId] = useState(taken ? `${app.id}-2` : app.id)
+  const [version, setVersion] = useState(app.version)
+  const [versionValid, setVersionValid] = useState(true)
   const [values, setValues] = useState<Record<string, string>>(() => defaultValues(app))
   const [checks, setChecks] = useState<Check[] | null>(null)
   const [checking, setChecking] = useState(false)
@@ -147,7 +150,7 @@ function InstallSheet({ app, onClose }: { app: CatalogApp; onClose: () => void }
     setChecking(true)
     const t = setTimeout(async () => {
       try {
-        const r = await api.preflight(app.id, id, values)
+        const r = await api.preflight(app.id, id, values, version)
         if (!stop) setChecks(r.checks)
       } catch (e) {
         if (!stop) setChecks([{ name: 'Self-test', level: 'fail', message: (e as Error).message }])
@@ -159,14 +162,14 @@ function InstallSheet({ app, onClose }: { app: CatalogApp; onClose: () => void }
       stop = true
       clearTimeout(t)
     }
-  }, [app.id, id, values])
+  }, [app.id, id, values, version])
 
   const fails = checks?.filter((c) => c.level === 'fail').length || 0
   const passes = checks?.filter((c) => c.level === 'ok').length || 0
   const install = async () => {
     setBusy(true)
     try {
-      const job = await api.install(app.id, id, values)
+      const job = await api.install(app.id, id, values, version)
       onClose()
       openJob(job.id, app.name)
       refreshApps()
@@ -185,13 +188,13 @@ function InstallSheet({ app, onClose }: { app: CatalogApp; onClose: () => void }
       footer={
         <>
           <span className="mr-auto flex items-center gap-2 font-mono text-xs text-muted">
-            {checking ? <Spinner size={13} /> : <Led s={fails ? 'bad' : checks ? 'ok' : 'off'} />}
-            {checking ? 'Testing…' : fails ? `${fails} to fix` : checks ? 'Ready' : ''}
+            {checking ? <Spinner size={13} /> : <Led s={fails || !versionValid ? 'bad' : checks ? 'ok' : 'off'} />}
+            {checking ? 'Testing…' : !versionValid ? 'Invalid version' : fails ? `${fails} to fix` : checks ? 'Ready' : ''}
           </span>
           <button className="key" onClick={onClose}>
             Cancel
           </button>
-          <button className="key key-primary" onClick={install} disabled={busy || checking || fails > 0} data-loading={busy}>
+          <button className="key key-primary" onClick={install} disabled={busy || checking || fails > 0 || !versionValid || !version.trim()} data-loading={busy}>
             Install {app.name}
           </button>
         </>
@@ -222,6 +225,18 @@ function InstallSheet({ app, onClose }: { app: CatalogApp; onClose: () => void }
         {app.notes && (
           <Notice label="Read first">{app.notes}</Notice>
         )}
+
+        <section className="space-y-3" aria-label="Version selection">
+          <VersionPicker
+            catalogId={app.id}
+            value={version}
+            defaultVersion={app.version}
+            onChange={(v, isValid) => {
+              setVersion(v)
+              setVersionValid(isValid)
+            }}
+          />
+        </section>
 
         {app.settings.length > 0 && (
           <section className="space-y-3" aria-label="Settings">

@@ -19,7 +19,7 @@ settings:
 compose: |
   services:
     pairdrop:
-      image: lscr.io/linuxserver/pairdrop:latest
+      image: lscr.io/linuxserver/pairdrop:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:3000"

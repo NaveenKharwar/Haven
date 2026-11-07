@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -304,9 +305,30 @@ func (m *Manager) Get(id string) (*AppMeta, string, map[string]string, error) {
 
 // --- pre-install checks ---------------------------------------------------
 
-func (m *Manager) Preflight(ctx context.Context, app *CatalogApp, id string, values map[string]string) []Check {
+var appVersionRe = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$`)
+
+func validateAppVersion(v string) error {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return errors.New("version cannot be empty")
+	}
+	if !appVersionRe.MatchString(v) {
+		return errors.New("version must contain only letters, numbers, dots, dashes, and underscores")
+	}
+	return nil
+}
+
+func (m *Manager) Preflight(ctx context.Context, app *CatalogApp, id string, version string, values map[string]string) []Check {
 	var checks []Check
 	add := func(name, level, msg string) { checks = append(checks, Check{name, level, msg}) }
+
+	if version != "" {
+		if err := validateAppVersion(version); err != nil {
+			add("Version", "fail", err.Error())
+		} else {
+			add("Version", "ok", version)
+		}
+	}
 
 	if v, err := m.docker.Version(ctx); err != nil {
 		add("Docker", "fail", "Docker is not running or not reachable: "+err.Error())
@@ -562,7 +584,7 @@ type InstallError struct {
 
 func (e *InstallError) Error() string { return e.Err.Error() }
 
-func (m *Manager) Install(ctx context.Context, catalogID, id string, values map[string]string) (*Job, error) {
+func (m *Manager) Install(ctx context.Context, catalogID, id string, version string, values map[string]string) (*Job, error) {
 	app, ok := m.cat.Get(catalogID)
 	if !ok {
 		return nil, errors.New("unknown app")
@@ -570,7 +592,14 @@ func (m *Manager) Install(ctx context.Context, catalogID, id string, values map[
 	if id == "" {
 		id = app.ID
 	}
-	checks := m.Preflight(ctx, app, id, values)
+	version = strings.TrimSpace(version)
+	if version == "" {
+		version = app.Version
+	}
+	if err := validateAppVersion(version); err != nil {
+		return nil, &InstallError{Err: fmt.Errorf("invalid version %q: %w", version, err)}
+	}
+	checks := m.Preflight(ctx, app, id, version, values)
 	if err := hasFail(checks); err != nil {
 		return nil, &InstallError{Checks: checks, Err: err}
 	}
@@ -584,6 +613,8 @@ func (m *Manager) Install(ctx context.Context, catalogID, id string, values map[
 	env.set("PUID", uid)
 	env.set("PGID", gid)
 	env.set("TZ", hostTZ())
+	env.set("APP_VERSION", version)
+	env.set("VERSION", version)
 	var paths []string
 	for _, s := range app.Settings {
 		v := values[s.Key]
@@ -637,7 +668,7 @@ func (m *Manager) Install(ctx context.Context, catalogID, id string, values map[
 			return err
 		}
 		meta := &AppMeta{ID: id, CatalogID: app.ID, Name: app.Name, Icon: app.Icon, Category: app.Category,
-			Version: app.Version, Web: app.Web, InstalledAt: time.Now()}
+			Version: version, Web: app.Web, InstalledAt: time.Now()}
 		if err := m.writeMeta(meta); err != nil {
 			cleanup()
 			return err
@@ -982,6 +1013,8 @@ func (m *Manager) runUpdate(ctx context.Context, j *Job, id string, meta *AppMet
 				env.set(s.Key, v)
 			}
 		}
+		env.set("APP_VERSION", app.Version)
+		env.set("VERSION", app.Version)
 		if err := env.write(envPath); err != nil {
 			return err
 		}
@@ -1029,73 +1062,113 @@ func (m *Manager) runUpdate(ctx context.Context, j *Job, id string, meta *AppMet
 	return errors.New("update failed; the previous version was restored and is running")
 }
 
-// Reconfigure changes an installed catalog app's settings and restarts it,
+// Reconfigure changes an installed app's settings and/or version and restarts it,
 // restoring the old settings if the app fails to come back.
-func (m *Manager) Reconfigure(ctx context.Context, id string, values map[string]string) (*Job, error) {
+func (m *Manager) Reconfigure(ctx context.Context, id string, values map[string]string, newVersion string) (*Job, error) {
 	meta, err := m.readMeta(id)
 	if err != nil || !appIDRe.MatchString(id) {
 		return nil, errors.New("app not found")
 	}
 	app, ok := m.cat.Get(meta.CatalogID)
-	if !ok || meta.Custom {
-		return nil, errors.New("only store apps can be reconfigured here")
+	if !ok && !meta.Custom {
+		return nil, errors.New("app not found in catalog")
+	}
+	newVersion = strings.TrimSpace(newVersion)
+	if newVersion == "" && values != nil {
+		newVersion = strings.TrimSpace(values["APP_VERSION"])
+		if newVersion == "" {
+			newVersion = strings.TrimSpace(values["VERSION"])
+		}
+	}
+	versionChanged := newVersion != "" && newVersion != meta.Version
+	if versionChanged {
+		if err := validateAppVersion(newVersion); err != nil {
+			return nil, fmt.Errorf("invalid version %q: %w", newVersion, err)
+		}
 	}
 	envPath := filepath.Join(m.appDir(id), ".env")
+	composePath := filepath.Join(m.appDir(id), "compose.yml")
 	env, err := readEnv(envPath)
 	if err != nil {
 		return nil, err
 	}
 	oldEnv, _ := os.ReadFile(envPath)
+	oldCompose, _ := os.ReadFile(composePath)
 	var errs []string
 	var newPaths []string
 	others := m.portsInUseByApps()
-	for i := range app.Settings {
-		s := &app.Settings[i]
-		v, ok := values[s.Key]
-		if !ok || v == env.vals[s.Key] {
-			continue
-		}
-		if v == "" && s.Required {
-			errs = append(errs, s.Label+" is required")
-			continue
-		}
-		if v != "" {
-			if err := validateValue(s, v); err != nil {
-				errs = append(errs, s.Label+": "+err.Error())
+	if ok && !meta.Custom {
+		for i := range app.Settings {
+			s := &app.Settings[i]
+			v, exists := values[s.Key]
+			if !exists || v == env.vals[s.Key] {
 				continue
 			}
-		}
-		if s.Type == "port" {
-			p, _ := strconv.Atoi(v)
-			if owner, used := others[p]; used && owner != meta.Name {
-				errs = append(errs, fmt.Sprintf("%s: port %d is assigned to %s", s.Label, p, owner))
+			if v == "" && s.Required {
+				errs = append(errs, s.Label+" is required")
 				continue
 			}
-			if !portFree(p, "tcp") {
-				errs = append(errs, fmt.Sprintf("%s: port %d is in use", s.Label, p))
-				continue
+			if v != "" {
+				if err := validateValue(s, v); err != nil {
+					errs = append(errs, s.Label+": "+err.Error())
+					continue
+				}
 			}
+			if s.Type == "port" {
+				p, _ := strconv.Atoi(v)
+				if owner, used := others[p]; used && owner != meta.Name {
+					errs = append(errs, fmt.Sprintf("%s: port %d is assigned to %s", s.Label, p, owner))
+					continue
+				}
+				if !portFree(p, "tcp") {
+					errs = append(errs, fmt.Sprintf("%s: port %d is in use", s.Label, p))
+					continue
+				}
+			}
+			if s.Type == "path" && v != "" {
+				newPaths = append(newPaths, v)
+			}
+			env.set(s.Key, v)
 		}
-		if s.Type == "path" && v != "" {
-			newPaths = append(newPaths, v)
-		}
-		env.set(s.Key, v)
 	}
 	if len(errs) > 0 {
 		return nil, errors.New(strings.Join(errs, "; "))
 	}
+	if versionChanged {
+		env.set("APP_VERSION", newVersion)
+		env.set("VERSION", newVersion)
+	}
 	if err := m.lock(id, "reconfigure"); err != nil {
 		return nil, err
 	}
-	return m.jobs.Start(id, "reconfigure", 15*time.Minute, func(ctx context.Context, j *Job) error {
+	return m.jobs.Start(id, "reconfigure", 20*time.Minute, func(ctx context.Context, j *Job) error {
 		defer m.unlock(id)
+		restore := func() {
+			_ = writeFileAtomic(envPath, oldEnv, 0o600)
+			_ = writeFileAtomic(composePath, oldCompose, 0o644)
+		}
 		for _, p := range newPaths {
 			if err := mkdirOwned(p); err != nil {
 				return err
 			}
 		}
+		if versionChanged && oldCompose != nil {
+			composeStr := string(oldCompose)
+			if !strings.Contains(composeStr, "${APP_VERSION}") && meta.Version != "" {
+				updatedCompose := strings.ReplaceAll(composeStr, ":"+meta.Version, ":${APP_VERSION}")
+				_ = writeFileAtomic(composePath, []byte(updatedCompose), 0o644)
+			}
+		}
 		if err := env.write(envPath); err != nil {
+			restore()
 			return err
+		}
+		if versionChanged {
+			j.Logf("Downloading images for version %s", newVersion)
+			if err := m.docker.stream(ctx, j, m.compose(id, "pull", "--ignore-buildable")...); err != nil {
+				restore()
+				return pullFailure(j, "could not download images for version "+newVersion)
+			}
 		}
 		j.Logf("Applying new settings")
 		err := m.docker.stream(ctx, j, m.compose(id, "up", "-d", "--remove-orphans")...)
@@ -1103,11 +1176,16 @@ func (m *Manager) Reconfigure(ctx context.Context, id string, values map[string]
 			err = m.waitHealthy(ctx, j, id, startTimeout(app))
 		}
 		if err == nil {
+			if versionChanged {
+				meta.Version = newVersion
+				_ = m.writeMeta(meta)
+				j.Logf("Version updated to %s", newVersion)
+			}
 			return nil
 		}
 		m.dumpLogs(j, id)
 		j.Logf("New settings failed; restoring previous settings")
-		_ = writeFileAtomic(envPath, oldEnv, 0o600)
+		restore()
 		_ = m.docker.stream(ctx, j, m.compose(id, "up", "-d", "--remove-orphans")...)
 		return errors.New("the new settings did not work, so the previous settings were restored")
 	}), nil

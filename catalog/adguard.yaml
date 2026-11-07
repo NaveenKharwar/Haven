@@ -24,7 +24,7 @@ settings:
 compose: |
   services:
     adguard:
-      image: adguard/adguardhome:latest
+      image: adguard/adguardhome:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${DNS_PORT}:53/tcp"

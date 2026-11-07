@@ -28,7 +28,7 @@ settings:
 compose: |
   services:
     searxng:
-      image: searxng/searxng:latest
+      image: searxng/searxng:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:8080"

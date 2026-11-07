@@ -19,7 +19,7 @@ settings:
 compose: |
   services:
     excalidraw:
-      image: excalidraw/excalidraw:latest
+      image: excalidraw/excalidraw:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:80"

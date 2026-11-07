@@ -5,7 +5,7 @@ tagline: Your own Google Drive, calendar and contacts
 description: File sync and sharing with desktop and phone apps, plus calendar, contacts and office tools. Includes a database and cache.
 icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/nextcloud.png
 website: https://nextcloud.com
-version: "31"
+version: "31-apache"
 archs: [amd64, arm64]
 min_ram_mb: 1024
 start_timeout: 300
@@ -61,7 +61,7 @@ compose: |
       image: redis:7-alpine
       restart: unless-stopped
     app:
-      image: nextcloud:31-apache
+      image: nextcloud:${APP_VERSION}
       restart: unless-stopped
       depends_on:
         db:

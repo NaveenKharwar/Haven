@@ -19,7 +19,7 @@ settings:
 compose: |
   services:
     mealie:
-      image: ghcr.io/mealie-recipes/mealie:v3.29.0
+      image: ghcr.io/mealie-recipes/mealie:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:9000"

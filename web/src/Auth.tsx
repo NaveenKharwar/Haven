@@ -117,12 +117,18 @@ export function Setup({ onDone }: { onDone: () => void }) {
 }
 
 export function Login({ onDone, onChangeDevice }: { onDone: () => void; onChangeDevice?: () => void }) {
+  const [mode, setMode] = useState<'login' | 'reset'>('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [resetToken, setResetToken] = useState('')
+  const [resetPass, setResetPass] = useState('')
+  const [resetConfirm, setResetConfirm] = useState('')
+  const [resetInfo, setResetInfo] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [requestingCode, setRequestingCode] = useState(false)
 
-  const submit = async (e: FormEvent) => {
+  const submitLogin = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
     setBusy(true)
@@ -136,6 +142,128 @@ export function Login({ onDone, onChangeDevice }: { onDone: () => void; onChange
     }
   }
 
+  const submitReset = async (e: FormEvent) => {
+    e.preventDefault()
+    setError('')
+    if (resetPass !== resetConfirm) {
+      return setError('The two passwords are different.')
+    }
+    setBusy(true)
+    try {
+      await api.resetPassword(resetToken, username.trim() || 'admin', resetPass)
+      onDone()
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const requestResetCode = async () => {
+    setRequestingCode(true)
+    setError('')
+    try {
+      const res = await api.resetRequest()
+      setResetInfo(res.message || 'Reset code generated on server at /opt/haven/reset-token')
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setRequestingCode(false)
+    }
+  }
+
+  if (mode === 'reset') {
+    return (
+      <Faceplate
+        title="Reset password"
+        foot={
+          <button
+            type="button"
+            className="underline decoration-rule-hi underline-offset-4 hover:text-ink"
+            onClick={() => {
+              setMode('login')
+              setError('')
+              setResetInfo('')
+            }}
+          >
+            Remember your password? Back to sign in
+          </button>
+        }
+      >
+        <form onSubmit={submitReset} className="space-y-4">
+          <p className="text-xs text-muted leading-relaxed">
+            Need a reset code? Run <code className="font-mono text-ink-2">haven -reset-token</code> on the server, or generate one below:
+          </p>
+          <div className="flex gap-2 items-center">
+            <button
+              type="button"
+              className="key key-sm"
+              onClick={requestResetCode}
+              disabled={requestingCode}
+            >
+              {requestingCode && <LoaderCircle size={13} className="spin" />} Generate code on server
+            </button>
+          </div>
+          {resetInfo && (
+            <p className="rounded-[2px] bg-well p-2 font-mono text-xs text-accent leading-normal">
+              {resetInfo}
+            </p>
+          )}
+          <Field
+            label="Reset code"
+            htmlFor="reset-code"
+            hint={
+              <>
+                Saved to <code className="font-mono text-ink-2">/opt/haven/reset-token</code>
+              </>
+            }
+          >
+            <input
+              id="reset-code"
+              className="field font-mono uppercase tracking-[0.3em]"
+              value={resetToken}
+              onChange={(e) => setResetToken(e.target.value)}
+              placeholder="XXXXXXXX"
+              autoFocus
+              required
+            />
+          </Field>
+          <Field label="Username" htmlFor="reset-user">
+            <input
+              id="reset-user"
+              className="field"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="admin"
+              required
+            />
+          </Field>
+          <Field label="New password" htmlFor="reset-pw">
+            <PasswordInput
+              id="reset-pw"
+              value={resetPass}
+              onChange={setResetPass}
+              autoComplete="new-password"
+              placeholder="8 characters or more"
+            />
+          </Field>
+          <Field label="Repeat new password" htmlFor="reset-pw2">
+            <PasswordInput
+              id="reset-pw2"
+              value={resetConfirm}
+              onChange={setResetConfirm}
+              autoComplete="new-password"
+            />
+          </Field>
+          <ErrorLine>{error}</ErrorLine>
+          <button className="key key-primary w-full" disabled={busy} data-loading={busy}>
+            {busy && <LoaderCircle size={15} className="spin" />} Reset password & sign in
+          </button>
+        </form>
+      </Faceplate>
+    )
+  }
+
   return (
     <Faceplate
       title="Sign in"
@@ -147,13 +275,25 @@ export function Login({ onDone, onChangeDevice }: { onDone: () => void; onChange
         )
       }
     >
-      <form onSubmit={submit} className="space-y-4">
+      <form onSubmit={submitLogin} className="space-y-4">
         <Field label="Username" htmlFor="user">
           <input id="user" className="field" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoFocus required />
         </Field>
         <Field label="Password" htmlFor="pw">
           <PasswordInput id="pw" value={password} onChange={setPassword} autoComplete="current-password" />
         </Field>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            className="text-xs text-muted hover:text-ink underline underline-offset-4"
+            onClick={() => {
+              setMode('reset')
+              setError('')
+            }}
+          >
+            Forgot password?
+          </button>
+        </div>
         <ErrorLine>{error}</ErrorLine>
         <button className="key key-primary w-full" disabled={busy} data-loading={busy}>
           {busy && <LoaderCircle size={15} className="spin" />} Sign in

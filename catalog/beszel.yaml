@@ -23,7 +23,7 @@ settings:
 compose: |
   services:
     beszel:
-      image: henrygd/beszel:0.21.1
+      image: henrygd/beszel:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:8090"

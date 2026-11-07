@@ -23,7 +23,7 @@ settings:
 compose: |
   services:
     grocy:
-      image: lscr.io/linuxserver/grocy:latest
+      image: lscr.io/linuxserver/grocy:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:80"

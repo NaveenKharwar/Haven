@@ -26,7 +26,7 @@ settings:
 compose: |
   services:
     calibre-web:
-      image: lscr.io/linuxserver/calibre-web:latest
+      image: lscr.io/linuxserver/calibre-web:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:8083"

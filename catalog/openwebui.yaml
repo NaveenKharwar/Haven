@@ -30,7 +30,7 @@ settings:
 compose: |
   services:
     open-webui:
-      image: ghcr.io/open-webui/open-webui:main
+      image: ghcr.io/open-webui/open-webui:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:8080"

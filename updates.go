@@ -112,14 +112,217 @@ func parseChallenge(h string) (realm, service, scope string) {
 	return
 }
 
+type cachedTags struct {
+	tags    []string
+	fetched time.Time
+}
+
 type registryClient struct {
-	http   *http.Client
-	mu     sync.Mutex
-	tokens map[string]string
+	http     *http.Client
+	mu       sync.Mutex
+	tokens   map[string]string
+	tagCache map[string]cachedTags
 }
 
 func newRegistryClient() *registryClient {
-	return &registryClient{http: &http.Client{Timeout: 20 * time.Second}, tokens: map[string]string{}}
+	return &registryClient{
+		http:     &http.Client{Timeout: 20 * time.Second},
+		tokens:   map[string]string{},
+		tagCache: map[string]cachedTags{},
+	}
+}
+
+var semverTagRe = regexp.MustCompile(`^v?(\d+)(\.(\d+))?(\.(\d+))?(-[a-zA-Z0-9.]+)?$`)
+
+func parseSemver(s string) ([3]int, string, bool) {
+	s = strings.TrimPrefix(s, "v")
+	pre := ""
+	if i := strings.Index(s, "-"); i >= 0 {
+		pre = s[i+1:]
+		s = s[:i]
+	}
+	parts := strings.Split(s, ".")
+	if len(parts) < 1 || len(parts) > 3 {
+		return [3]int{}, "", false
+	}
+	var n [3]int
+	for i, p := range parts {
+		v, err := strconv.Atoi(p)
+		if err != nil {
+			return [3]int{}, "", false
+		}
+		n[i] = v
+	}
+	return n, pre, true
+}
+
+func compareSemver(a, b string) int {
+	na, pa, okA := parseSemver(a)
+	nb, pb, okB := parseSemver(b)
+	if !okA || !okB {
+		if okA {
+			return 1
+		}
+		if okB {
+			return -1
+		}
+		return strings.Compare(a, b)
+	}
+	for i := 0; i < 3; i++ {
+		if na[i] != nb[i] {
+			if na[i] > nb[i] {
+				return 1
+			}
+			return -1
+		}
+	}
+	if pa == pb {
+		return 0
+	}
+	if pa == "" {
+		return 1
+	}
+	if pb == "" {
+		return -1
+	}
+	if pa > pb {
+		return 1
+	}
+	return -1
+}
+
+func filterAndSortTags(tags []string) []string {
+	var clean []string
+	seen := map[string]bool{}
+	for _, t := range tags {
+		t = strings.TrimSpace(t)
+		if t == "" || seen[t] {
+			continue
+		}
+		lower := strings.ToLower(t)
+		if strings.Contains(lower, "sha256") || strings.Contains(lower, "arm") ||
+			strings.Contains(lower, "amd64") || strings.Contains(lower, "pr-") ||
+			strings.Contains(lower, "test") || strings.Contains(lower, "debug") {
+			continue
+		}
+		if lower == "latest" || lower == "stable" || semverTagRe.MatchString(t) {
+			seen[t] = true
+			clean = append(clean, t)
+		}
+	}
+
+	sort.Slice(clean, func(i, j int) bool {
+		if clean[i] == "latest" {
+			return true
+		}
+		if clean[j] == "latest" {
+			return false
+		}
+		if clean[i] == "stable" {
+			return true
+		}
+		if clean[j] == "stable" {
+			return false
+		}
+		cmp := compareSemver(clean[i], clean[j])
+		if cmp != 0 {
+			return cmp > 0
+		}
+		return clean[i] > clean[j]
+	})
+
+	if len(clean) > 30 {
+		clean = clean[:30]
+	}
+	return clean
+}
+
+func (c *registryClient) Tags(ctx context.Context, r imageRef) ([]string, error) {
+	key := r.host + "/" + r.repo
+	c.mu.Lock()
+	if cached, ok := c.tagCache[key]; ok && time.Since(cached.fetched) < 10*time.Minute {
+		tags := append([]string(nil), cached.tags...)
+		c.mu.Unlock()
+		return tags, nil
+	}
+	c.mu.Unlock()
+
+	u := fmt.Sprintf("https://%s/v2/%s/tags/list", r.host, r.repo)
+	for attempt := 0; attempt < 2; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("User-Agent", userAgent)
+		c.mu.Lock()
+		tok := c.tokens[key]
+		c.mu.Unlock()
+		if tok != "" {
+			req.Header.Set("Authorization", "Bearer "+tok)
+		}
+		resp, err := c.http.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("can't reach %s", r.host)
+		}
+		switch {
+		case resp.StatusCode == http.StatusOK:
+			defer resp.Body.Close()
+			var data struct {
+				Tags []string `json:"tags"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+				return nil, err
+			}
+			clean := filterAndSortTags(data.Tags)
+			c.mu.Lock()
+			c.tagCache[key] = cachedTags{tags: clean, fetched: time.Now()}
+			c.mu.Unlock()
+			return clean, nil
+		case resp.StatusCode == http.StatusUnauthorized && attempt == 0:
+			resp.Body.Close()
+			realm, service, scope := parseChallenge(resp.Header.Get("Www-Authenticate"))
+			if realm == "" {
+				return nil, errors.New("the registry needs a login")
+			}
+			if scope == "" {
+				scope = "repository:" + r.repo + ":pull"
+			}
+			t, err := c.token(ctx, realm, service, scope)
+			if err != nil {
+				return nil, err
+			}
+			c.mu.Lock()
+			c.tokens[key] = t
+			c.mu.Unlock()
+		default:
+			resp.Body.Close()
+			return nil, fmt.Errorf("%s answered %d", r.host, resp.StatusCode)
+		}
+	}
+	return nil, errors.New("the registry refused access")
+}
+
+func (c *registryClient) CheckTag(ctx context.Context, r imageRef) (bool, error) {
+	key := r.host + "/" + r.repo
+	c.mu.Lock()
+	if cached, ok := c.tagCache[key]; ok {
+		for _, t := range cached.tags {
+			if t == r.tag {
+				c.mu.Unlock()
+				return true, nil
+			}
+		}
+	}
+	c.mu.Unlock()
+
+	_, err := c.Digest(ctx, r)
+	if err == nil {
+		return true, nil
+	}
+	if strings.Contains(err.Error(), "isn't on the registry") || strings.Contains(err.Error(), "404") {
+		return false, nil
+	}
+	return false, err
 }
 
 const manifestAccept = "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json"

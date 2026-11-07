@@ -29,7 +29,7 @@ settings:
 compose: |
   services:
     pihole:
-      image: pihole/pihole:latest
+      image: pihole/pihole:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${DNS_PORT}:53/tcp"

@@ -8,7 +8,7 @@ Haven is one program. Your apps are ordinary Docker Compose projects, so if you 
 
 ## Features
 
-- **App store:** 54 self-hosted apps. Each one is checked against your server (ports, disk, RAM, CPU type) before it installs.
+- **App store:** 54 self-hosted apps. Each one is checked against your server (ports, disk, RAM, CPU type) before it installs. Choose from recommended, latest, recent release versions, or custom image tags with live registry matching.
 - **Clear errors:** a failed install or update explains the cause, and every app has a Diagnose button.
 - **Safe updates:** apps and Haven itself update with one click and roll back if the new version doesn't start. Haven's own releases are signed.
 - **Overview:** eight widgets you can rearrange: clock, weather, markets, currency, news, notes, quick links and status checks for your router or apps.
@@ -74,6 +74,7 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 - The program is `/usr/local/bin/haven`, run by systemd as `haven.service`. Logs: `journalctl -u haven`.
 - Each app is a folder, `/opt/haven/apps/<id>/`, holding `compose.yml` and `.env`. Its data is in `/opt/haven/appdata/<id>/`.
 - Haven's own state is a few small JSON files in `/opt/haven`.
+- **Password reset:** Click **Forgot password?** on the sign-in screen, or run `sudo haven reset-password <user>` (or `sudo haven reset-token`) on the server.
 
 ## Develop
 
@@ -92,7 +93,7 @@ bash scripts/test-get.sh        # tests the one-line installer
 ./deploy.sh you@SERVER_IP       # build, copy and install on your server
 ```
 
-To add an app to the store, copy a file in `catalog/` and edit it. `go test` rejects mistakes such as an undefined `${VAR}`, a missing image tag, or a port another app already uses. Built-in variables: `APP_DATA`, `PUID`, `PGID`, `TZ`. The visual style is described in [design.md](design.md). Maintainers publish releases as described in [docs/RELEASING.md](docs/RELEASING.md).
+To add an app to the store, copy a file in `catalog/` and edit it. `go test` rejects mistakes such as an undefined `${VAR}`, a missing image tag, or a port another app already uses. Built-in variables: `APP_DATA`, `APP_VERSION`, `VERSION`, `PUID`, `PGID`, `TZ`. The visual style is described in [design.md](design.md). Maintainers publish releases as described in [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Roadmap
 

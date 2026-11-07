@@ -28,7 +28,7 @@ settings:
 compose: |
   services:
     vikunja:
-      image: vikunja/vikunja:2.7.1
+      image: vikunja/vikunja:${APP_VERSION}
       restart: unless-stopped
       user: "0:0"
       ports:

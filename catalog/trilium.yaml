@@ -19,7 +19,7 @@ settings:
 compose: |
   services:
     trilium:
-      image: triliumnext/trilium:v0.106.1
+      image: triliumnext/trilium:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:8080"

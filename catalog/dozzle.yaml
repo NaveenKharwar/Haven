@@ -18,7 +18,7 @@ settings:
 compose: |
   services:
     dozzle:
-      image: amir20/dozzle:latest
+      image: amir20/dozzle:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:8080"

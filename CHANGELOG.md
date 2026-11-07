@@ -2,6 +2,12 @@
 
 Each release's notes come from its section here. Add a `## <version>` section before you tag. If there is none, the release notes list the commit titles since the last release.
 
+## 0.1.24
+
+- **App version selection**: Choose an app's version when installing or change it later from its settings tab. Select from the recommended default, `latest`, recent upstream release versions, or enter a custom tag with real-time container registry validation and inline error reporting.
+- **Dynamic catalog image tags**: Updated all 54 catalog app templates so image tags use `${APP_VERSION}` / `${VERSION}` instead of hardcoded versions.
+- **Password reset**: Added password reset support via the sign-in screen using a secure 15-minute token generated on the server (`/opt/haven/reset-token`), along with CLI subcommands and flags (`haven reset-password [user]`, `haven reset-token`).
+
 ## 0.1.23
 
 - Removed the unused option to read a GitHub token from the data folder. It was only needed while the repository was private, and Haven now asks GitHub for public releases only.

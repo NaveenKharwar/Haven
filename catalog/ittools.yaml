@@ -17,7 +17,7 @@ settings:
 compose: |
   services:
     it-tools:
-      image: corentinth/it-tools:latest
+      image: corentinth/it-tools:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:80"

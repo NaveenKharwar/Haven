@@ -33,7 +33,7 @@ settings:
 compose: |
   services:
     immich-server:
-      image: ghcr.io/immich-app/immich-server:v3.3.5
+      image: ghcr.io/immich-app/immich-server:${APP_VERSION}
       restart: unless-stopped
       depends_on:
         - redis
@@ -51,7 +51,7 @@ compose: |
         DB_DATABASE_NAME: immich
         REDIS_HOSTNAME: redis
     immich-machine-learning:
-      image: ghcr.io/immich-app/immich-machine-learning:v3.3.5
+      image: ghcr.io/immich-app/immich-machine-learning:${APP_VERSION}
       restart: unless-stopped
       volumes:
         - ${APP_DATA}/model-cache:/cache

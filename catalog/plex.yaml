@@ -24,7 +24,7 @@ settings:
 compose: |
   services:
     plex:
-      image: lscr.io/linuxserver/plex:latest
+      image: lscr.io/linuxserver/plex:${APP_VERSION}
       restart: unless-stopped
       network_mode: host
       volumes:

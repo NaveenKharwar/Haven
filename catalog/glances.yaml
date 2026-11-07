@@ -18,7 +18,7 @@ settings:
 compose: |
   services:
     glances:
-      image: nicolargo/glances:latest-full
+      image: nicolargo/glances:${APP_VERSION}
       restart: unless-stopped
       pid: host
       ports:

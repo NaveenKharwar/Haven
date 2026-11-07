@@ -24,7 +24,7 @@ settings:
 compose: |
   services:
     ntfy:
-      image: binwiederhier/ntfy:v2.33.1
+      image: binwiederhier/ntfy:${APP_VERSION}
       restart: unless-stopped
       command: serve
       ports:

@@ -17,7 +17,7 @@ settings:
 compose: |
   services:
     prowlarr:
-      image: lscr.io/linuxserver/prowlarr:latest
+      image: lscr.io/linuxserver/prowlarr:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:9696"

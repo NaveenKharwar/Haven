@@ -20,7 +20,7 @@ settings:
 compose: |
   services:
     memos:
-      image: neosmemo/memos:stable
+      image: neosmemo/memos:${APP_VERSION}
       restart: unless-stopped
       ports:
         - "${WEB_PORT}:5230"
