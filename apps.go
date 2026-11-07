@@ -223,7 +223,7 @@ func (m *Manager) List(ctx context.Context) ([]InstalledApp, []Container, error)
 			}
 		}
 		if ca, ok := m.cat.Get(meta.CatalogID); ok && !meta.Custom {
-			if ca.Version != meta.Version {
+			if meta.Version != "latest" && compareSemver(ca.Version, meta.Version) > 0 {
 				a.UpdateAvailable = ca.Version
 			}
 			a.Notes = ca.Notes
@@ -999,7 +999,13 @@ func (m *Manager) runUpdate(ctx context.Context, j *Job, id string, meta *AppMet
 		_ = writeFileAtomic(envPath, oldEnv, 0o600)
 	}
 
+	ver := meta.Version
 	if app != nil {
+		if ver == "" {
+			ver = app.Version
+		} else if ca, ok := m.cat.Get(meta.CatalogID); ok && ca.Version != "" && meta.Version != "latest" && compareSemver(ca.Version, meta.Version) > 0 {
+			ver = ca.Version
+		}
 		env, err := readEnv(envPath)
 		if err != nil {
 			return err
@@ -1013,8 +1019,8 @@ func (m *Manager) runUpdate(ctx context.Context, j *Job, id string, meta *AppMet
 				env.set(s.Key, v)
 			}
 		}
-		env.set("APP_VERSION", app.Version)
-		env.set("VERSION", app.Version)
+		env.set("APP_VERSION", ver)
+		env.set("VERSION", ver)
 		if err := env.write(envPath); err != nil {
 			return err
 		}
@@ -1040,7 +1046,7 @@ func (m *Manager) runUpdate(ctx context.Context, j *Job, id string, meta *AppMet
 	m.usageChanged(id, false)
 	if upErr == nil {
 		if app != nil {
-			meta.Version = app.Version
+			meta.Version = ver
 			meta.Icon, meta.Web, meta.Name = app.Icon, app.Web, app.Name
 			_ = m.writeMeta(meta)
 		}

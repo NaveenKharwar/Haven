@@ -1827,3 +1827,66 @@ func TestCatalogVersionsAndCheckVersionEndpoints(t *testing.T) {
 		t.Fatalf("expected tag syntax to be valid, got %+v", validRes)
 	}
 }
+
+func TestAppUpdateAvailabilityLatestAndSemver(t *testing.T) {
+	dir := t.TempDir()
+	cat, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobs := NewJobs()
+	docker := &Docker{}
+	m := NewManager(dir, docker, cat, jobs)
+
+	// Jellyfin catalog version is 10.10.7
+	jf, ok := cat.Get("jellyfin")
+	if !ok || jf.Version == "" {
+		t.Fatal("jellyfin catalog entry missing")
+	}
+
+	writeApp := func(id, version string) {
+		appDir := filepath.Join(dir, "apps", id)
+		_ = os.MkdirAll(appDir, 0o755)
+		meta := AppMeta{
+			ID:          id,
+			CatalogID:   "jellyfin",
+			Name:        "Jellyfin",
+			Version:     version,
+			InstalledAt: time.Now(),
+		}
+		b, _ := json.Marshal(meta)
+		_ = os.WriteFile(filepath.Join(appDir, "haven.json"), b, 0o644)
+		_ = os.WriteFile(filepath.Join(appDir, "compose.yml"), []byte("services:\n  jellyfin:\n    image: jellyfin/jellyfin\n"), 0o644)
+	}
+
+	// 1. App tracking 'latest' should NOT report update available to catalog version
+	writeApp("jf-latest", "latest")
+	// 2. App on older semver should report update available to catalog version
+	writeApp("jf-old", "10.9.11")
+	// 3. App on equal version should NOT report update available
+	writeApp("jf-same", jf.Version)
+	// 4. App on newer version should NOT report update available
+	writeApp("jf-newer", "10.11.0")
+
+	apps, _, err := m.List(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	appMap := map[string]InstalledApp{}
+	for _, a := range apps {
+		appMap[a.ID] = a
+	}
+
+	if a := appMap["jf-latest"]; a.UpdateAvailable != "" {
+		t.Errorf("jf-latest should have no update available, got %q", a.UpdateAvailable)
+	}
+	if a := appMap["jf-old"]; a.UpdateAvailable != jf.Version {
+		t.Errorf("jf-old should report update to %q, got %q", jf.Version, a.UpdateAvailable)
+	}
+	if a := appMap["jf-same"]; a.UpdateAvailable != "" {
+		t.Errorf("jf-same should have no update available, got %q", a.UpdateAvailable)
+	}
+	if a := appMap["jf-newer"]; a.UpdateAvailable != "" {
+		t.Errorf("jf-newer should have no update available, got %q", a.UpdateAvailable)
+	}
+}

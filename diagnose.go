@@ -383,7 +383,7 @@ func (m *Manager) Diagnose(ctx context.Context, id string) (*Diagnosis, error) {
 			break
 		}
 	}
-	if ca, ok := m.cat.Get(meta.CatalogID); ok && !meta.Custom && ca.Version != meta.Version {
+	if ca, ok := m.cat.Get(meta.CatalogID); ok && !meta.Custom && meta.Version != "latest" && compareSemver(ca.Version, meta.Version) > 0 {
 		add(Finding{Level: "info", Area: "Image", Title: "Version " + ca.Version + " is available",
 			Fix: "Updating sometimes fixes bugs. Haven rolls back automatically if the update fails."})
 	}
