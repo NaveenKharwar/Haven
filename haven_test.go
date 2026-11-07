@@ -935,8 +935,15 @@ func TestJobsSurviveRestart(t *testing.T) {
 	for i := 0; i < 100 && j.View(false).Status == "running"; i++ {
 		time.Sleep(20 * time.Millisecond)
 	}
-	time.Sleep(100 * time.Millisecond)
-	back, ok := NewJobsAt(path).Get(j.ID)
+	var back *Job
+	var ok bool
+	for i := 0; i < 50; i++ {
+		back, ok = NewJobsAt(path).Get(j.ID)
+		if ok && back.View(true).Status == "failed" && len(back.View(true).Log) >= 2 {
+			break
+		}
+		time.Sleep(40 * time.Millisecond)
+	}
 	if !ok || back.View(true).Status != "failed" || len(back.View(true).Log) < 2 {
 		t.Fatalf("job not restored: %v %+v", ok, back)
 	}
