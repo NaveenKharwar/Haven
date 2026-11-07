@@ -11,7 +11,7 @@ screenshots:
   - https://user-images.githubusercontent.com/241032/192042695-522b3ec7-6845-494a-abdb-d1c0d0e23801.png
   - https://user-images.githubusercontent.com/241032/129636211-abd20fa2-a953-4366-9423-1c88ebb96ba9.png
 web: { port: WEB_PORT }
-notes: "Copyparty runs out-of-the-box with full read and write access to your shared folder."
+notes: "No login needed. Copyparty runs out-of-the-box with full read and write access to your server files."
 settings:
   - key: WEB_PORT
     label: Web port
@@ -21,13 +21,15 @@ settings:
   - key: FILES_PATH
     label: Shared folder
     type: path
-    default: /srv/files
+    default: /
     required: true
+    description: Root folder to browse. Default / gives access to the entire server.
 compose: |
   services:
     copyparty:
       image: copyparty/ac:${APP_VERSION}
       restart: unless-stopped
+      user: "0:0"
       command: -v /w/files:/:rwmda -e2dsa
       ports:
         - "${WEB_PORT}:3923"

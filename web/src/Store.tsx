@@ -113,7 +113,21 @@ function defaultPort(a: CatalogApp): string | undefined {
 
 function defaultValues(app: CatalogApp) {
   const v: Record<string, string> = {}
-  for (const s of app.settings) v[s.key] = s.prefill === 'host' && !s.default ? window.location.hostname : s.default || ''
+  const port = defaultPort(app)
+  for (const s of app.settings) {
+    if (s.prefill === 'host' && !s.default) {
+      if (s.key.endsWith('_URL') || s.key === 'PUBLIC_URL' || s.key === 'BASE_URL') {
+        const proto = window.location.protocol || 'http:'
+        const host = window.location.hostname
+        const suffix = app.id === 'vikunja' ? '/' : ''
+        v[s.key] = port ? `${proto}//${host}:${port}${suffix}` : `${proto}//${host}${suffix}`
+      } else {
+        v[s.key] = window.location.hostname
+      }
+    } else {
+      v[s.key] = s.default || ''
+    }
+  }
   return v
 }
 

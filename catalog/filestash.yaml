@@ -22,8 +22,9 @@ settings:
   - key: STORAGE_PATH
     label: Storage folder
     type: path
-    default: /srv/files
+    default: /
     required: true
+    description: Root folder to browse. Default / gives access to the entire server.
 compose: |
   services:
     filestash:

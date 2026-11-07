@@ -11,7 +11,7 @@ screenshots:
   - https://filebrowserquantum.com/images/generated/listing/view-mode-normal-dark.jpg
   - https://filebrowserquantum.com/images/generated/listing/view-mode-gallery-dark.jpg
 web: { port: WEB_PORT }
-notes: "First sign-in: admin with password admin. Change the password straight away in Settings > Profile."
+notes: "First sign-in: admin with password admin123. Change the password straight away in Settings > Profile."
 settings:
   - key: WEB_PORT
     label: Web port
@@ -21,13 +21,15 @@ settings:
   - key: FILES_PATH
     label: Storage folder
     type: path
-    default: /srv/files
+    default: /
     required: true
+    description: Root folder to browse. Default / gives access to the entire server.
 compose: |
   services:
     filebrowser:
       image: ghcr.io/gtsteffaniak/filebrowser:${APP_VERSION}
       restart: unless-stopped
+      user: "0:0"
       ports:
         - "${WEB_PORT}:80"
       volumes:
@@ -36,7 +38,7 @@ compose: |
       environment:
         FILEBROWSER_CONFIG: /home/filebrowser/config.yaml
         FILEBROWSER_DATABASE_PATH: /home/filebrowser/data/database.sqlite
-        FILEBROWSER_AUTH_ADMIN_PASSWORD: admin
+        FILEBROWSER_ADMIN_PASSWORD: admin123
         PUID: ${PUID}
         PGID: ${PGID}
         TZ: ${TZ}

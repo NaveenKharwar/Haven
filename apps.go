@@ -318,6 +318,22 @@ func validateAppVersion(v string) error {
 	return nil
 }
 
+func normalizeSettingValue(appID, key, v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return v
+	}
+	if strings.HasSuffix(key, "_URL") || key == "PUBLIC_URL" || key == "BASE_URL" {
+		if !strings.HasPrefix(v, "http://") && !strings.HasPrefix(v, "https://") {
+			v = "http://" + v
+		}
+		if appID == "vikunja" && !strings.HasSuffix(v, "/") {
+			v = v + "/"
+		}
+	}
+	return v
+}
+
 func (m *Manager) Preflight(ctx context.Context, app *CatalogApp, id string, version string, values map[string]string) []Check {
 	var checks []Check
 	add := func(name, level, msg string) { checks = append(checks, Check{name, level, msg}) }
@@ -367,6 +383,7 @@ func (m *Manager) Preflight(ctx context.Context, app *CatalogApp, id string, ver
 		if v == "" {
 			v = s.Default
 		}
+		v = normalizeSettingValue(app.ID, s.Key, v)
 		if v == "" {
 			if s.Required && !s.Generate {
 				add(s.Label, "fail", "is required")
@@ -624,6 +641,7 @@ func (m *Manager) Install(ctx context.Context, catalogID, id string, version str
 		if v == "" && s.Generate {
 			v = randomPassword(40)
 		}
+		v = normalizeSettingValue(app.ID, s.Key, v)
 		env.set(s.Key, v)
 		if s.Type == "path" && v != "" {
 			paths = append(paths, v)
@@ -1107,7 +1125,11 @@ func (m *Manager) Reconfigure(ctx context.Context, id string, values map[string]
 		for i := range app.Settings {
 			s := &app.Settings[i]
 			v, exists := values[s.Key]
-			if !exists || v == env.vals[s.Key] {
+			if !exists {
+				continue
+			}
+			v = normalizeSettingValue(app.ID, s.Key, v)
+			if v == env.vals[s.Key] {
 				continue
 			}
 			if v == "" && s.Required {

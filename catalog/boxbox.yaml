@@ -22,8 +22,9 @@ settings:
   - key: FILES_PATH
     label: Storage folder
     type: path
-    default: /srv/files
+    default: /
     required: true
+    description: Root folder to browse. Default / gives access to the entire server.
   - key: JWT_SECRET
     label: Session secret
     type: string
@@ -33,16 +34,31 @@ compose: |
     boxbox:
       image: ghcr.io/jr4dh3y/boxbox:${APP_VERSION}
       restart: unless-stopped
-      user: "${PUID}:${PGID}"
+      user: "0:0"
       ports:
         - "${WEB_PORT}:8080"
       volumes:
         - ${APP_DATA}/data:/data
         - ${APP_DATA}/tmp:/tmp/boxbox
-        - ${FILES_PATH}:/home/user
+        - ${FILES_PATH}:/host
       environment:
         BOXBOX_JWT_SECRET: ${JWT_SECRET}
         BOXBOX_USERS_admin: "$$2a$$12$$p6AccDHsZL8DDm7dUX8lLOQ8A6dRRZL.j1O628oL/FoYWU4FtImgy"
         PUID: ${PUID}
         PGID: ${PGID}
         TZ: ${TZ}
+      entrypoint:
+        - /bin/sh
+        - -c
+        - |
+          cat << 'EOF' > /tmp/boxbox/config.yaml
+          port: 8080
+          host: "0.0.0.0"
+          allow_root_mount: true
+          mount_points:
+            - name: "server"
+              path: "/host"
+              read_only: false
+          EOF
+          export CONFIG_PATH=/tmp/boxbox/config.yaml
+          exec /app/server

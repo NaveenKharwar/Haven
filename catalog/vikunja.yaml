@@ -37,7 +37,7 @@ compose: |
         - ${APP_DATA}/db:/db
         - ${APP_DATA}/files:/app/vikunja/files
       environment:
-        VIKUNJA_SERVICE_PUBLICURL: ${PUBLIC_URL}
+        VIKUNJA_SERVICE_PUBLICURL: ${PUBLIC_URL:-http://localhost:3456/}
         VIKUNJA_SERVICE_JWTSECRET: ${JWT_SECRET}
         VIKUNJA_DATABASE_TYPE: sqlite
         VIKUNJA_DATABASE_PATH: /db/vikunja.db

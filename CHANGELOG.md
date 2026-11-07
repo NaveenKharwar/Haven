@@ -2,6 +2,17 @@
 
 Each release's notes come from its section here. Add a `## <version>` section before you tag. If there is none, the release notes list the commit titles since the last release.
 
+## 0.1.28
+
+- **Full server access for file managers**:
+  - Configured FileBrowser Quantum, BoxBox, Copyparty, and Filestash to default their storage paths to `/` with root permissions (`user: "0:0"`), allowing users to browse, organize, edit, upload, and manage files anywhere on their Ubuntu server out of the box.
+  - **FileBrowser Quantum**: Fixed initial admin password configuration (`admin` / `admin123`) via `FILEBROWSER_ADMIN_PASSWORD` and updated login instructions.
+  - **BoxBox**: Configured container with `allow_root_mount: true` and mapped the host filesystem as the primary `server` drive, removing empty desktop/media folders from the interface.
+- **Karakeep boot and health check fix**:
+  - Fixed Karakeep installation failure caused by Zod URL validation errors on bare hostnames during database migration.
+  - Enhanced frontend URL prefill in `Store.tsx` and `TV.tsx` to automatically generate full, valid URLs (`http://<host>:<port>`) for URL settings.
+  - Added backend URL normalization (`normalizeSettingValue`) in `apps.go` and safe compose defaults (`${PUBLIC_URL:-http://localhost:3000}`).
+
 ## 0.1.27
 
 - **Fix file manager catalog templates**:

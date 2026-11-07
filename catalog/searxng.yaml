@@ -35,7 +35,7 @@ compose: |
       volumes:
         - ${APP_DATA}/config:/etc/searxng
       environment:
-        SEARXNG_BASE_URL: ${BASE_URL}
+        SEARXNG_BASE_URL: ${BASE_URL:-http://localhost:8888/}
         SEARXNG_SECRET: ${SECRET}
       cap_drop:
         - ALL

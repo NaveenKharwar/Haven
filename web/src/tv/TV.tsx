@@ -491,7 +491,21 @@ function TvInstallSheet({ app, onClose, onJob }: { app: CatalogApp; onClose: () 
   const blocked = needsInput(app)
   const values = useMemo(() => {
     const v: Record<string, string> = {}
-    for (const s of app.settings) v[s.key] = s.prefill === 'host' && !s.default ? window.location.hostname : s.default || ''
+    const port = app.web?.port && /^\d+$/.test(app.web.port) ? app.web.port : app.settings.find((x) => x.key === app.web?.port)?.default
+    for (const s of app.settings) {
+      if (s.prefill === 'host' && !s.default) {
+        if (s.key.endsWith('_URL') || s.key === 'PUBLIC_URL' || s.key === 'BASE_URL') {
+          const proto = window.location.protocol || 'http:'
+          const host = window.location.hostname
+          const suffix = app.id === 'vikunja' ? '/' : ''
+          v[s.key] = port ? `${proto}//${host}:${port}${suffix}` : `${proto}//${host}${suffix}`
+        } else {
+          v[s.key] = window.location.hostname
+        }
+      } else {
+        v[s.key] = s.default || ''
+      }
+    }
     return v
   }, [app])
   const [checks, setChecks] = useState<Check[] | null>(null)

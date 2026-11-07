@@ -138,6 +138,32 @@ func TestValidateValue(t *testing.T) {
 	}
 }
 
+func TestNormalizeSettingValue(t *testing.T) {
+	cases := []struct {
+		appID string
+		key   string
+		in    string
+		want  string
+	}{
+		{"karakeep", "PUBLIC_URL", "192.168.1.10", "http://192.168.1.10"},
+		{"karakeep", "PUBLIC_URL", "192.168.1.10:3040", "http://192.168.1.10:3040"},
+		{"karakeep", "PUBLIC_URL", "http://192.168.1.10:3040", "http://192.168.1.10:3040"},
+		{"karakeep", "PUBLIC_URL", "https://karakeep.example.com", "https://karakeep.example.com"},
+		{"karakeep", "PUBLIC_URL", "", ""},
+		{"searxng", "BASE_URL", "192.168.1.10:8888", "http://192.168.1.10:8888"},
+		{"vikunja", "PUBLIC_URL", "192.168.1.10:3456", "http://192.168.1.10:3456/"},
+		{"vikunja", "PUBLIC_URL", "http://192.168.1.10:3456/", "http://192.168.1.10:3456/"},
+		{"nextcloud", "TRUSTED_DOMAINS", "192.168.1.10 nas.local", "192.168.1.10 nas.local"},
+		{"ntfy", "BASE_HOST", "192.168.1.10", "192.168.1.10"},
+	}
+	for _, tc := range cases {
+		got := normalizeSettingValue(tc.appID, tc.key, tc.in)
+		if got != tc.want {
+			t.Errorf("normalizeSettingValue(%q, %q, %q) = %q; want %q", tc.appID, tc.key, tc.in, got, tc.want)
+		}
+	}
+}
+
 func TestEnvRoundTrip(t *testing.T) {
 	p := filepath.Join(t.TempDir(), ".env")
 	e := &envFile{vals: map[string]string{}}

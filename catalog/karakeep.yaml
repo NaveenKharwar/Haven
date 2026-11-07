@@ -10,6 +10,7 @@ archs: [amd64, arm64]
 min_ram_mb: 2048
 start_timeout: 240
 web: { port: WEB_PORT }
+notes: "First sign-in: click Sign Up to create your admin account when opening Karakeep for the first time."
 settings:
   - key: WEB_PORT
     label: Web port
@@ -50,7 +51,7 @@ compose: |
         BROWSER_WEB_URL: http://chrome:9222
         NEXTAUTH_SECRET: ${SECRET}
         MEILI_MASTER_KEY: ${MEILI_KEY}
-        NEXTAUTH_URL: ${PUBLIC_URL}
+        NEXTAUTH_URL: ${PUBLIC_URL:-http://localhost:3000}
     chrome:
       image: ghcr.io/karakeep-app/karakeep-chrome:release
       restart: unless-stopped
