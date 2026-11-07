@@ -1,0 +1,41 @@
+id: filebrowser-quantum
+name: FileBrowser Quantum
+category: Files
+tagline: Modern web file manager with media streaming and document editing
+description: A fast, feature-rich web file explorer fork of FileBrowser. Browse, upload, stream media with on-the-fly transcoding, edit documents, and manage files on your server from any browser.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/file-browser.png
+website: https://filebrowserquantum.com
+version: stable
+archs: [amd64, arm64]
+screenshots:
+  - https://filebrowserquantum.com/images/generated/listing/view-mode-normal-dark.jpg
+  - https://filebrowserquantum.com/images/generated/listing/view-mode-gallery-dark.jpg
+web: { port: WEB_PORT }
+notes: "First sign-in: admin with password admin. Change the password straight away in Settings > Profile."
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8093"
+    required: true
+  - key: FILES_PATH
+    label: Storage folder
+    type: path
+    default: /srv/files
+    required: true
+compose: |
+  services:
+    filebrowser:
+      image: ghcr.io/gtsteffaniak/filebrowser:${APP_VERSION}
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:80"
+      volumes:
+        - ${APP_DATA}/data:/home/filebrowser/data
+        - ${FILES_PATH}:/srv
+      environment:
+        FILEBROWSER_CONFIG: /home/filebrowser/data/config.yaml
+        FILEBROWSER_DATABASE_PATH: /home/filebrowser/data/database.sqlite
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}

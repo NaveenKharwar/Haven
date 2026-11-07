@@ -1,0 +1,46 @@
+id: boxbox
+name: BoxBox
+category: Files
+tagline: Modern desktop-style file manager for your homelab
+description: A clean, modern web file manager built with SvelteKit and Go. Browse your server's filesystem with desktop-class keyboard shortcuts, multi-select, and file operations.
+icon: https://raw.githubusercontent.com/jR4dh3y/BoxBox/master/frontend/static/logo-boxbox-3d.svg
+website: https://github.com/jR4dh3y/BoxBox
+version: v0.3.1
+archs: [amd64, arm64]
+screenshots:
+  - https://raw.githubusercontent.com/jR4dh3y/BoxBox/master/.github/assets/screenshot-browse.jpg
+  - https://raw.githubusercontent.com/jR4dh3y/BoxBox/master/.github/assets/screenshot-preview.jpg
+  - https://raw.githubusercontent.com/jR4dh3y/BoxBox/master/.github/assets/screenshot-editor.jpg
+web: { port: WEB_PORT }
+notes: "First sign-in: admin with password admin. Change the password straight away in settings."
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8095"
+    required: true
+  - key: FILES_PATH
+    label: Storage folder
+    type: path
+    default: /srv/files
+    required: true
+  - key: JWT_SECRET
+    label: Session secret
+    type: string
+    generate: true
+compose: |
+  services:
+    boxbox:
+      image: ghcr.io/jr4dh3y/boxbox:${APP_VERSION}
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8080"
+      volumes:
+        - ${APP_DATA}/data:/data
+        - ${FILES_PATH}:/home/user/Files
+      environment:
+        BOXBOX_JWT_SECRET: ${JWT_SECRET}
+        BOXBOX_USERS_admin: "$$2a$$12$$p6AccDHsZL8DDm7dUX8lLOQ8A6dRRZL.j1O628oL/FoYWU4FtImgy"
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}

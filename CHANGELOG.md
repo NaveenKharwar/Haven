@@ -2,6 +2,15 @@
 
 Each release's notes come from its section here. Add a `## <version>` section before you tag. If there is none, the release notes list the commit titles since the last release.
 
+## 0.1.26
+
+- **New file managers in catalog**: Added four popular, actively maintained web file managers to the app store catalog:
+  - **FileBrowser Quantum**: Modern fork of FileBrowser with on-the-fly media transcoding and document editing.
+  - **BoxBox**: Homelab file manager built with Go and SvelteKit featuring desktop keyboard shortcuts and Monaco code editor.
+  - **Filestash**: Web client supporting local files, SFTP, S3 buckets, FTP, and WebDAV.
+  - **Copyparty**: High-speed, lightweight file server with resumable uploads and WebDAV support.
+- **Catalog screenshot galleries**: Added verified UI screenshots to catalog entries for visual previews in the Haven app store.
+
 ## 0.1.25
 
 - **Fix update notice on `latest` and custom versions**: Apps configured to track `latest` or newer custom semver versions no longer display a false update notice pointing back to the catalog's default version.

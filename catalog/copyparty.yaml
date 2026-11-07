@@ -1,0 +1,39 @@
+id: copyparty
+name: Copyparty
+category: Files
+tagline: Lightning-fast file server with media streaming and WebDAV
+description: A blazing fast, multi-client file server. Supports high-speed resumable uploads, media streaming, deduplication, search, and WebDAV with minimal resource usage.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/copyparty.png
+website: https://github.com/9001/copyparty
+version: latest
+archs: [amd64, arm64]
+screenshots:
+  - https://user-images.githubusercontent.com/241032/192042695-522b3ec7-6845-494a-abdb-d1c0d0e23801.png
+  - https://user-images.githubusercontent.com/241032/129636211-abd20fa2-a953-4366-9423-1c88ebb96ba9.png
+web: { port: WEB_PORT }
+notes: "Copyparty runs out-of-the-box with full read and write access to your shared folder."
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "3923"
+    required: true
+  - key: FILES_PATH
+    label: Shared folder
+    type: path
+    default: /srv/files
+    required: true
+compose: |
+  services:
+    copyparty:
+      image: copyparty/ac:${APP_VERSION}
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:3923"
+      volumes:
+        - ${APP_DATA}/cfg:/cfg
+        - ${FILES_PATH}:/w/files
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}

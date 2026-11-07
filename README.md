@@ -8,7 +8,7 @@ Haven is one program. Your apps are ordinary Docker Compose projects, so if you 
 
 ## Features
 
-- **App store:** 54 self-hosted apps. Each one is checked against your server (ports, disk, RAM, CPU type) before it installs. Choose from recommended, latest, recent release versions, or custom image tags with live registry matching.
+- **App store:** 58 self-hosted apps. Each one is checked against your server (ports, disk, RAM, CPU type) before it installs. Choose from recommended, latest, recent release versions, or custom image tags with live registry matching.
 - **Clear errors:** a failed install or update explains the cause, and every app has a Diagnose button.
 - **Safe updates:** apps and Haven itself update with one click and roll back if the new version doesn't start. Haven's own releases are signed.
 - **Overview:** eight widgets you can rearrange: clock, weather, markets, currency, news, notes, quick links and status checks for your router or apps.

@@ -1,0 +1,36 @@
+id: filestash
+name: Filestash
+category: Files
+tagline: Web client for local files, SFTP, S3, and cloud storage
+description: A versatile web client for your files. Connect local folders, SFTP servers, S3 buckets, FTP, and WebDAV to browse, search, and manage your storage from one interface.
+icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/filestash.png
+website: https://www.filestash.app
+version: latest
+archs: [amd64, arm64]
+screenshots:
+  - https://www.filestash.app/img/screenshots/viewerpage.png
+  - https://www.filestash.app/img/screenshots/theme_github.png
+  - https://www.filestash.app/img/screenshots/theme_apple.png
+web: { port: WEB_PORT }
+notes: "Open Filestash to set your master admin password during first-time setup."
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8334"
+    required: true
+  - key: STORAGE_PATH
+    label: Storage folder
+    type: path
+    default: /srv/files
+    required: true
+compose: |
+  services:
+    filestash:
+      image: machines/filestash:${APP_VERSION}
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8334"
+      volumes:
+        - ${APP_DATA}/data:/app/data/state
+        - ${STORAGE_PATH}:/data
