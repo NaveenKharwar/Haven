@@ -2,6 +2,13 @@
 
 Each release's notes come from its section here. Add a `## <version>` section before you tag. If there is none, the release notes list the commit titles since the last release.
 
+## 0.1.27
+
+- **Fix file manager catalog templates**:
+  - **BoxBox**: Added `user: "${PUID}:${PGID}"`, mapped `${APP_DATA}/tmp:/tmp/boxbox`, and mapped storage to `/home/user`, resolving the container startup crash (`chmod /data: operation not permitted`).
+  - **FileBrowser Quantum**: Fixed config path to use internal default `/home/filebrowser/config.yaml` and set initial admin password, preventing fatal error on missing config.
+  - **Copyparty**: Configured volume command `-v /w/files:/:rwmda -e2dsa` to override Docker zero-access failsafe and enable read/write/delete and media search out of the box.
+
 ## 0.1.26
 
 - **New file managers in catalog**: Added four popular, actively maintained web file managers to the app store catalog:

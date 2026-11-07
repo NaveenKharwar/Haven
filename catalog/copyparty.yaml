@@ -28,6 +28,7 @@ compose: |
     copyparty:
       image: copyparty/ac:${APP_VERSION}
       restart: unless-stopped
+      command: -v /w/files:/:rwmda -e2dsa
       ports:
         - "${WEB_PORT}:3923"
       volumes:

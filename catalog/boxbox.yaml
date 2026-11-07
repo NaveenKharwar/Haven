@@ -33,11 +33,13 @@ compose: |
     boxbox:
       image: ghcr.io/jr4dh3y/boxbox:${APP_VERSION}
       restart: unless-stopped
+      user: "${PUID}:${PGID}"
       ports:
         - "${WEB_PORT}:8080"
       volumes:
         - ${APP_DATA}/data:/data
-        - ${FILES_PATH}:/home/user/Files
+        - ${APP_DATA}/tmp:/tmp/boxbox
+        - ${FILES_PATH}:/home/user
       environment:
         BOXBOX_JWT_SECRET: ${JWT_SECRET}
         BOXBOX_USERS_admin: "$$2a$$12$$p6AccDHsZL8DDm7dUX8lLOQ8A6dRRZL.j1O628oL/FoYWU4FtImgy"

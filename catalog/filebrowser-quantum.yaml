@@ -34,8 +34,9 @@ compose: |
         - ${APP_DATA}/data:/home/filebrowser/data
         - ${FILES_PATH}:/srv
       environment:
-        FILEBROWSER_CONFIG: /home/filebrowser/data/config.yaml
+        FILEBROWSER_CONFIG: /home/filebrowser/config.yaml
         FILEBROWSER_DATABASE_PATH: /home/filebrowser/data/database.sqlite
+        FILEBROWSER_AUTH_ADMIN_PASSWORD: admin
         PUID: ${PUID}
         PGID: ${PGID}
         TZ: ${TZ}
