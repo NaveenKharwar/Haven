@@ -2,6 +2,13 @@
 
 Each release's notes come from its section here. Add a `## <version>` section before you tag. If there is none, the release notes list the commit titles since the last release.
 
+## 0.1.29
+
+- **SnapOtter in catalog**:
+  - Added SnapOtter (`catalog/snapotter.yaml`), an open-source, self-hosted file-processing platform with over 200 utilities across images, videos, audio, PDFs, and documents.
+  - Includes local AI capabilities (OCR, transcription, photo restoration, background removal) and a layer-based web editor.
+  - Configured embedded PostgreSQL 17 and Redis 8 single-container runtime, web port 1349, automated user/permission remapping (`PUID`/`PGID`), volume mapping, and extended startup timeout (`start_timeout: 300`) to guarantee reliable first-boot initialization and health checks.
+
 ## 0.1.28
 
 - **Full server access for file managers**:

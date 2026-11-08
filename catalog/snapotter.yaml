@@ -1,0 +1,35 @@
+id: snapotter
+name: SnapOtter
+category: Productivity
+tagline: "Convert, edit, OCR and run AI on your files"
+description: "A self-hosted file-processing platform with over 200 utilities for images, videos, audio, PDFs and documents. Features OCR, background removal, photo restoration, audio transcription and a web editor. Files are processed entirely on your server."
+icon: https://cdn.jsdelivr.net/gh/snapotter-hq/SnapOtter@v2.3.0/apps/web/public/logo.png
+website: https://snapotter.com
+version: "2.3.0"
+archs: [amd64, arm64]
+min_ram_mb: 2048
+start_timeout: 300
+notes: "Default sign-in: username admin with password admin. You will be prompted to choose a new password on your first sign-in."
+screenshots:
+  - https://cdn.jsdelivr.net/gh/snapotter-hq/SnapOtter@v2.3.0/branding/social-preview.png
+web: { port: WEB_PORT }
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "1349"
+    required: true
+compose: |
+  services:
+    snapotter:
+      image: ghcr.io/snapotter-hq/snapotter:${APP_VERSION}
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:1349"
+      volumes:
+        - ${APP_DATA}/data:/data
+        - ${APP_DATA}/workspace:/tmp/workspace
+      environment:
+        TZ: ${TZ}
+        PUID: ${PUID}
+        PGID: ${PGID}
