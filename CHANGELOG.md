@@ -2,6 +2,16 @@
 
 Each release's notes come from its section here. Add a `## <version>` section before you tag. If there is none, the release notes list the commit titles since the last release.
 
+## 0.1.30
+
+- **Battery telemetry & hardware detection**:
+  - Automatically detects battery presence on laptops and battery-backed systems via Linux kernel power supply subsystem (`/sys/class/power_supply/*`), filtering out peripheral devices (`scope == "Device"`). Supports Darwin (`pmset`) for local development.
+  - Headless servers, desktops, and cloud VPS instances without a battery cleanly omit the battery indicator from the UI with zero visual clutter.
+  - Added monospace segmented digital readout (`BAT <Readout />%`) in the header alongside `CPU` and `MEM`, with strictly equal 12px spacing and typographic baseline alignment.
+  - Vector Lucide icons for all power states: active charging (`Zap`), low battery warning `< 20%` (`BatteryWarning`), critical alert `< 10%` with pulsing warning, and hardware health conditions (e.g. overheat / battery degradation).
+  - Interactive diagnostics popover with real-time capacity ladder meter, battery health condition, wear percentage against factory design capacity, and AC power source status.
+  - Live system monitor telemetry polled every 3 seconds via `/api/system`.
+
 ## 0.1.29
 
 - **SnapOtter in catalog**:

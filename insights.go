@@ -296,15 +296,11 @@ func driveList(ctx context.Context) []Drive {
 }
 
 func batteryLine() string {
-	matches, _ := filepath.Glob("/sys/class/power_supply/BAT*")
-	for _, m := range matches {
-		pct := readFirst(m + "/capacity")
-		st := readFirst(m + "/status")
-		if pct != "" {
-			return strings.TrimSpace(pct + "% " + strings.ToLower(st))
-		}
+	b := readBattery()
+	if b == nil {
+		return ""
 	}
-	return ""
+	return fmt.Sprintf("%d%% %s", b.Percent, strings.ToLower(b.Status))
 }
 
 func temperatures(ctx context.Context) []Temp {

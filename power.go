@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -27,9 +29,12 @@ const lidDropIn = "/etc/systemd/logind.conf.d/50-haven-lid.conf"
 var sleepTargets = []string{"sleep.target", "suspend.target", "hibernate.target", "hybrid-sleep.target", "suspend-then-hibernate.target"}
 
 type Battery struct {
-	Percent  int    `json:"percent"`
-	Status   string `json:"status"` // Charging, Discharging, Full, Not charging
-	ACOnline bool   `json:"acOnline"`
+	Percent       int    `json:"percent"`
+	Status        string `json:"status"` // Charging, Discharging, Full, Not charging
+	ACOnline      bool   `json:"acOnline"`
+	Health        string `json:"health,omitempty"`
+	HealthPercent int    `json:"healthPercent,omitempty"`
+	Issue         string `json:"issue,omitempty"`
 }
 
 type PowerStatus struct {
@@ -136,28 +141,122 @@ func hasGraphicalSession(ctx context.Context) bool {
 }
 
 func readBattery() *Battery {
+	if runtime.GOOS == "darwin" {
+		return readBatteryDarwin()
+	}
+	return readBatteryLinux()
+}
+
+func readBatteryLinux() *Battery {
 	var bat *Battery
 	ac := false
 	supplies, _ := filepath.Glob("/sys/class/power_supply/*")
 	for _, s := range supplies {
-		typ, _ := os.ReadFile(filepath.Join(s, "type"))
-		switch strings.TrimSpace(string(typ)) {
+		typ := readFirst(filepath.Join(s, "type"))
+		switch typ {
 		case "Battery":
-			if scope, _ := os.ReadFile(filepath.Join(s, "scope")); strings.TrimSpace(string(scope)) == "Device" {
+			if readFirst(filepath.Join(s, "scope")) == "Device" {
 				continue // a mouse or keyboard battery, not the laptop's
 			}
-			capb, _ := os.ReadFile(filepath.Join(s, "capacity"))
-			stb, _ := os.ReadFile(filepath.Join(s, "status"))
-			pct, _ := strconv.Atoi(strings.TrimSpace(string(capb)))
-			bat = &Battery{Percent: pct, Status: strings.TrimSpace(string(stb))}
+			capb := readFirst(filepath.Join(s, "capacity"))
+			st := readFirst(filepath.Join(s, "status"))
+			health := readFirst(filepath.Join(s, "health"))
+			if health == "" {
+				health = "Good"
+			}
+			pct, _ := strconv.Atoi(capb)
+
+			healthPct := 0
+			cFull, _ := strconv.Atoi(readFirst(filepath.Join(s, "charge_full")))
+			cDesign, _ := strconv.Atoi(readFirst(filepath.Join(s, "charge_full_design")))
+			if cFull == 0 || cDesign == 0 {
+				cFull, _ = strconv.Atoi(readFirst(filepath.Join(s, "energy_full")))
+				cDesign, _ = strconv.Atoi(readFirst(filepath.Join(s, "energy_full_design")))
+			}
+			if cDesign > 0 && cFull > 0 {
+				healthPct = (cFull * 100) / cDesign
+				if healthPct > 100 {
+					healthPct = 100
+				}
+			}
+
+			var issue string
+			if health != "" && strings.ToLower(health) != "good" {
+				issue = "Battery condition: " + health
+			}
+
+			bat = &Battery{
+				Percent:       pct,
+				Status:        st,
+				Health:        health,
+				HealthPercent: healthPct,
+				Issue:         issue,
+			}
 		case "Mains", "USB":
-			if on, _ := os.ReadFile(filepath.Join(s, "online")); strings.TrimSpace(string(on)) == "1" {
+			if readFirst(filepath.Join(s, "online")) == "1" {
 				ac = true
 			}
 		}
 	}
 	if bat != nil {
 		bat.ACOnline = ac
+		if bat.Issue == "" && !bat.ACOnline {
+			if bat.Percent <= 10 {
+				bat.Issue = "Critical battery · Connect charger to prevent shutdown"
+			} else if bat.Percent <= 20 {
+				bat.Issue = "Low battery · Running on battery power"
+			}
+		}
+	}
+	return bat
+}
+
+func readBatteryDarwin() *Battery {
+	out, err := exec.Command("pmset", "-g", "batt").Output()
+	if err != nil {
+		return nil
+	}
+	s := string(out)
+	if !strings.Contains(s, "InternalBattery") {
+		return nil
+	}
+	ac := strings.Contains(s, "'AC Power'")
+	bat := &Battery{ACOnline: ac, Health: "Good", HealthPercent: 100}
+	for _, line := range strings.Split(s, "\n") {
+		if !strings.Contains(line, "InternalBattery") {
+			continue
+		}
+		parts := strings.Split(line, "\t")
+		if len(parts) < 2 {
+			continue
+		}
+		fields := strings.Split(parts[1], ";")
+		if len(fields) > 0 {
+			pctStr := strings.TrimSpace(strings.TrimSuffix(fields[0], "%"))
+			if pct, err := strconv.Atoi(pctStr); err == nil {
+				bat.Percent = pct
+			}
+		}
+		if len(fields) > 1 {
+			rawSt := strings.ToLower(strings.TrimSpace(fields[1]))
+			switch {
+			case strings.Contains(rawSt, "discharging"):
+				bat.Status = "Discharging"
+			case strings.Contains(rawSt, "charging"):
+				bat.Status = "Charging"
+			case strings.Contains(rawSt, "charged"), strings.Contains(rawSt, "full"):
+				bat.Status = "Full"
+			default:
+				bat.Status = "Not charging"
+			}
+		}
+	}
+	if !bat.ACOnline {
+		if bat.Percent <= 10 {
+			bat.Issue = "Critical battery · Connect charger to prevent shutdown"
+		} else if bat.Percent <= 20 {
+			bat.Issue = "Low battery · Running on battery power"
+		}
 	}
 	return bat
 }

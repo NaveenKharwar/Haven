@@ -50,6 +50,7 @@ type SystemInfo struct {
 	NetRxTotal uint64     `json:"netRxTotal"`
 	NetTxTotal uint64     `json:"netTxTotal"`
 	TempC      *float64   `json:"tempC"`
+	Battery    *Battery   `json:"battery,omitempty"`
 	Docker     string     `json:"docker"`
 	Version    string     `json:"version"`
 	History    []Point    `json:"history"`
@@ -126,6 +127,7 @@ func (m *SystemMonitor) Run(ctx context.Context) {
 			info.NetRxTotal, info.NetTxTotal = rx, tx
 		}
 		info.TempC = cpuTemp()
+		info.Battery = readBattery()
 
 		// Slower-changing things: refresh every ~30s.
 		if slow%10 == 0 {

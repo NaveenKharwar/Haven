@@ -20,6 +20,7 @@ import { enterTv } from './tv/spatial'
 import { go, readPath, subscribePath } from './router'
 import ProfileMenu from './profile'
 import { Footer } from './about'
+import { BatteryHeaderItem } from './battery'
 
 
 const allNav: { id: Route; label: string; key: string; min: Role }[] = [
@@ -265,6 +266,7 @@ function Shell({ user, role, version, repo, author, authorUrl, onLogout }: { use
               <span>
                 MEM <Readout value={sys?.memPercent} digits={3} className="text-ink" />%
               </span>
+              <BatteryHeaderItem battery={sys?.battery} />
             </span>
             <button className="key key-sm hidden sm:inline-flex" onClick={enterTv} title="Open TV mode">
               <Tv size={14} /> TV

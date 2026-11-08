@@ -106,6 +106,15 @@ export type VersionCheckResult = {
 
 export type DiskInfo = { mount: string; device: string; fstype: string; total: number; used: number; free: number; percent: number }
 export type Point = { t: number; cpu: number; mem: number; rx: number; tx: number }
+export type BatteryInfo = {
+  percent: number
+  status: 'Charging' | 'Discharging' | 'Full' | 'Not charging' | string
+  acOnline: boolean
+  health?: string
+  healthPercent?: number
+  issue?: string
+}
+
 export type SystemInfo = {
   hostname: string
   os: string
@@ -131,6 +140,7 @@ export type SystemInfo = {
   docker: string
   version: string
   history: Point[] | null
+  battery?: BatteryInfo | null
 }
 
 export type Finding = { level: 'ok' | 'info' | 'warn' | 'bad'; area: string; title: string; detail?: string; fix?: string; evidence?: string[] }
