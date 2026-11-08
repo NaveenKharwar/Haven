@@ -2,6 +2,11 @@
 
 Each release's notes come from its section here. Add a `## <version>` section before you tag. If there is none, the release notes list the commit titles since the last release.
 
+## 0.1.31
+
+- **Remove preview sample states from battery telemetry**:
+  - Removed development mock samples and preview switcher buttons from the battery diagnostics popover, ensuring only live host hardware telemetry is displayed.
+
 ## 0.1.30
 
 - **Battery telemetry & hardware detection**:
