@@ -35,8 +35,8 @@ export default function ProfileMenu({ user, role, onSettings, onTv, onLogout }: 
     <div ref={box} className="relative">
       <button className="key key-sm h-9 gap-2 pl-1 pr-2" onClick={() => setOpen(!open)} aria-haspopup="menu" aria-expanded={open} aria-label={`Account: ${user}`}>
         <Avatar name={user} size={26} />
-        <span className="hidden max-w-[7rem] truncate md:inline">{user}</span>
-        <ChevronDown size={13} className={cx('hidden text-muted transition-transform md:block', open && 'rotate-180')} />
+        <span className="hidden max-w-[7rem] truncate lg:inline">{user}</span>
+        <ChevronDown size={13} className={cx('hidden text-muted transition-transform lg:block', open && 'rotate-180')} />
       </button>
       {open && (
         <div role="menu" className="plate rise absolute right-0 top-full z-40 mt-2 w-60 overflow-hidden shadow-xl">

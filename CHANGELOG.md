@@ -2,6 +2,14 @@
 
 Each release's notes come from its section here. Add a `## <version>` section before you tag. If there is none, the release notes list the commit titles since the last release.
 
+## 0.1.32
+
+- **Mobile & tablet hardware telemetry**:
+  - Brought CPU, memory, and battery telemetry to mobile and tablet devices via a slim faceplate sub-header strip below the primary navigation.
+  - Telemetry elements (`CPU`, `MEM`, `BAT`) maintain monospace segmented digital readouts with strict equal spacing.
+  - Optimized header layout on tablet portrait viewports (768px) to guarantee clean alignment and eliminate horizontal overflow or profile clipping.
+  - Added touch event support (`touchstart`) for dismissing the battery diagnostics popover on mobile devices.
+
 ## 0.1.31
 
 - **Remove preview sample states from battery telemetry**:

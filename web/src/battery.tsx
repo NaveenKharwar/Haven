@@ -21,14 +21,18 @@ export function BatteryHeaderItem({
 
   // Close dropdown on outside click
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
+    function handleClickOutside(e: MouseEvent | TouchEvent) {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
         setOpen(false)
       }
     }
     if (open) {
       document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
+      document.addEventListener('touchstart', handleClickOutside)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+        document.removeEventListener('touchstart', handleClickOutside)
+      }
     }
   }, [open])
 

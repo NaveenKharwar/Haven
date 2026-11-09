@@ -233,8 +233,8 @@ function Shell({ user, role, version, repo, author, authorUrl, onLogout }: { use
           <button onClick={() => navigate('overview')} aria-label="Haven overview" className="rounded-[2px]">
             <Wordmark />
           </button>
-          <span className="hidden h-6 w-px bg-rule md:block" />
-          <span className="hidden min-w-0 items-center gap-2 md:flex">
+          <span className="hidden h-6 w-px bg-rule xl:block" />
+          <span className="hidden min-w-0 items-center gap-2 xl:flex">
             <Led s={sys?.docker ? 'ok' : sys ? 'bad' : 'off'} label={sys?.docker ? 'Docker running' : 'Docker not running'} />
             <span className="truncate font-mono text-xs text-ink-2">{sys?.hostname || '…'}</span>
           </span>
@@ -258,8 +258,8 @@ function Shell({ user, role, version, repo, author, authorUrl, onLogout }: { use
             })}
           </nav>
 
-          <div className="ml-auto flex items-center gap-4 md:ml-0">
-            <span className="hidden items-baseline gap-3 font-mono text-xs text-muted lg:flex">
+          <div className="ml-auto flex items-center gap-3 md:ml-0 lg:gap-4">
+            <span className="hidden items-baseline gap-3 font-mono text-xs text-muted xl:flex">
               <span>
                 CPU <Readout value={sys?.cpuPercent} digits={3} className="text-ink" />%
               </span>
@@ -268,11 +268,30 @@ function Shell({ user, role, version, repo, author, authorUrl, onLogout }: { use
               </span>
               <BatteryHeaderItem battery={sys?.battery} />
             </span>
-            <button className="key key-sm hidden sm:inline-flex" onClick={enterTv} title="Open TV mode">
+            <button className="key key-sm hidden xl:inline-flex" onClick={enterTv} title="Open TV mode">
               <Tv size={14} /> TV
             </button>
             {atLeast(role, 'manager') && <NotificationBell onOpenRoute={navigate} />}
             <ProfileMenu user={user} role={role} onSettings={() => navigate('settings')} onTv={enterTv} onLogout={onLogout} />
+          </div>
+        </div>
+
+        {/* Hardware telemetry strip on tablet & mobile (< xl) */}
+        <div className="border-t border-rule/60 bg-paper/95 px-4 lg:px-8 xl:hidden">
+          <div className="mx-auto flex h-8 max-w-[90rem] items-center justify-between gap-3 font-mono text-xs text-muted">
+            <span className="flex min-w-0 items-center gap-2">
+              <Led s={sys?.docker ? 'ok' : sys ? 'bad' : 'off'} label={sys?.docker ? 'Docker running' : 'Docker not running'} />
+              <span className="truncate text-ink-2">{sys?.hostname || '…'}</span>
+            </span>
+            <span className="flex shrink-0 items-baseline gap-3">
+              <span>
+                CPU <Readout value={sys?.cpuPercent} digits={3} className="text-ink" />%
+              </span>
+              <span>
+                MEM <Readout value={sys?.memPercent} digits={3} className="text-ink" />%
+              </span>
+              <BatteryHeaderItem battery={sys?.battery} />
+            </span>
           </div>
         </div>
       </header>
