@@ -2,6 +2,19 @@
 
 Each release's notes come from its section here. Add a `## <version>` section before you tag. If there is none, the release notes list the commit titles since the last release.
 
+## 0.1.33
+
+- **Air Quality widget & multi-year historical comparison**:
+  - Added dedicated compact Air Quality widget (`aqi`) to the Overview dashboard, positioned beside Weather.
+  - Live global air quality telemetry powered by Open-Meteo Air Quality API with Copernicus Atmosphere Monitoring Service (CAMS) and NOAA aerosol models, with automatic 15-minute backend caching.
+  - Displays real-time US EPA AQI index, color-coded health severity badge (`Good`, `Moderate`, `Sensitive`, `Unhealthy`, `Very Unhealthy`, `Hazardous`), primary dominant pollutant, fine particulate (`PM2.5`), coarse dust (`PM10`), and a 24-hour oscilloscope trend sparkline.
+  - Interactive **Diagnostic Modal** with zero-shift layout UX:
+    - 6-stage AQI scale bar with high-contrast OKLCH palette colors in both Bone (light) and Graphite (dark) themes, complete with active category highlight and numeric breakpoints.
+    - Status LED indicators for health actions: N95 mask recommendation, indoor air purifier guidance, and outdoor exertion advice.
+    - Multi-line interactive SVG chart comparing current diurnal and weekly air quality curves against previous years (2025, 2024), along with WHO guideline target lines and net pollution delta calculation.
+    - 6-pollutant matrix analyzing PM2.5, PM10, Nitrogen Dioxide (NO₂), Ground Ozone (O₃), Carbon Monoxide (CO), and Sulphur Dioxide (SO₂) against WHO 24-hour targets.
+    - Follows user's configured cities via CitySearch with instant city tabs.
+
 ## 0.1.32
 
 - **Mobile & tablet hardware telemetry**:

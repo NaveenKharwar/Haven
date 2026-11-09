@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,12 +19,13 @@ import (
 	_ "time/tzdata" // so time zones work even when the server has none installed
 )
 
-// Widgets: weather, local news, currency rates and market prices.
+// Widgets: weather, air quality, local news, currency rates and market prices.
 //
 // Haven's server fetches the data (so the browser never talks to outside
 // sites, and a TV doesn't need to), caches it, and keeps showing the last
 // good data if a source is down. All sources are free and need no API key:
 //   weather   Open-Meteo            (open-meteo.com)
+//   aqi       Open-Meteo Air Quality (air-quality-api.open-meteo.com)
 //   news      Google News RSS       (news.google.com)
 //   currency  Frankfurter / ECB     (frankfurter.dev)
 //   markets   Yahoo Finance charts  (unofficial; cached 15 min)
@@ -69,7 +71,7 @@ type QuickLink struct {
 }
 
 // widgetKeys are the Overview widgets, in their default order.
-var widgetKeys = []string{"weather", "markets", "currency", "news", "clock", "notes", "links", "status"}
+var widgetKeys = []string{"weather", "aqi", "markets", "currency", "news", "clock", "notes", "links", "status"}
 
 type Background struct {
 	Shader string  `json:"shader"` // "" = plain faceplate
@@ -449,6 +451,328 @@ func (w *Widgets) weather(ctx context.Context, p Place, units string) (any, erro
 	return out, nil
 }
 
+// --- air quality ----------------------------------------------------------
+
+type AirQualityHourly struct {
+	Time string  `json:"time"`
+	AQI  int     `json:"aqi"`
+	PM25 float64 `json:"pm25"`
+	PM10 float64 `json:"pm10"`
+}
+
+type YearComparison struct {
+	Year int       `json:"year"`
+	AQI  []int     `json:"aqi"`
+	PM25 []float64 `json:"pm25"`
+	PM10 []float64 `json:"pm10"`
+}
+
+type AirQuality struct {
+	Place       string             `json:"place"`
+	AQI         int                `json:"aqi"`
+	EuropeanAQI int                `json:"europeanAqi,omitempty"`
+	Status      string             `json:"status"`
+	Dominant    string             `json:"dominant"`
+	PM25        float64            `json:"pm25"`
+	PM10        float64            `json:"pm10"`
+	NO2         float64            `json:"no2"`
+	O3          float64            `json:"o3"`
+	SO2         float64            `json:"so2"`
+	CO          float64            `json:"co"`
+	Hourly      []AirQualityHourly `json:"hourly"`
+	History     []YearComparison   `json:"history,omitempty"`
+}
+
+func aqiStatus(aqi int) string {
+	switch {
+	case aqi <= 50:
+		return "Good"
+	case aqi <= 100:
+		return "Moderate"
+	case aqi <= 150:
+		return "Sensitive"
+	case aqi <= 200:
+		return "Unhealthy"
+	case aqi <= 300:
+		return "Very Unhealthy"
+	default:
+		return "Hazardous"
+	}
+}
+
+func dominantPollutant(pm25, pm10, no2, o3 float64) string {
+	maxRatio := pm25 / 15.0
+	dominant := "PM2.5"
+	if r := pm10 / 45.0; r > maxRatio {
+		maxRatio = r
+		dominant = "PM10"
+	}
+	if r := no2 / 25.0; r > maxRatio {
+		maxRatio = r
+		dominant = "NO₂"
+	}
+	if r := o3 / 100.0; r > maxRatio {
+		dominant = "O₃"
+	}
+	return dominant
+}
+
+func calcUSAQI(pm25 float64) int {
+	type breakpoint struct {
+		cLow, cHigh float64
+		iLow, iHigh float64
+	}
+	bp := []breakpoint{
+		{0.0, 12.0, 0, 50},
+		{12.1, 35.4, 51, 100},
+		{35.5, 55.4, 101, 150},
+		{55.5, 150.4, 151, 200},
+		{150.5, 250.4, 201, 300},
+		{250.5, 350.4, 301, 400},
+		{350.5, 500.4, 401, 500},
+	}
+	for _, b := range bp {
+		if pm25 >= b.cLow && pm25 <= b.cHigh {
+			return int(math.Round(((b.iHigh-b.iLow)/(b.cHigh-b.cLow))*(pm25-b.cLow) + b.iLow))
+		}
+	}
+	if pm25 > 500.4 {
+		return 500
+	}
+	return 0
+}
+
+func dailyAverages(times []string, aqi []int, pm25 []float64, pm10 []float64) ([]int, []float64, []float64) {
+	if len(times) == 0 {
+		return nil, nil, nil
+	}
+	type dayAcc struct {
+		aqiSum  int
+		aqiCnt  int
+		pm25Sum float64
+		pm25Cnt int
+		pm10Sum float64
+		pm10Cnt int
+	}
+	days := map[string]*dayAcc{}
+	var orderedDays []string
+	for i, t := range times {
+		if len(t) < 10 {
+			continue
+		}
+		d := t[:10]
+		acc := days[d]
+		if acc == nil {
+			acc = &dayAcc{}
+			days[d] = acc
+			orderedDays = append(orderedDays, d)
+		}
+		if i < len(aqi) && aqi[i] > 0 {
+			acc.aqiSum += aqi[i]
+			acc.aqiCnt++
+		}
+		if i < len(pm25) && pm25[i] >= 0 {
+			acc.pm25Sum += pm25[i]
+			acc.pm25Cnt++
+		}
+		if i < len(pm10) && pm10[i] >= 0 {
+			acc.pm10Sum += pm10[i]
+			acc.pm10Cnt++
+		}
+	}
+	var outAQI []int
+	var outPM25 []float64
+	var outPM10 []float64
+	for _, d := range orderedDays {
+		acc := days[d]
+		meanAQI := 0
+		if acc.aqiCnt > 0 {
+			meanAQI = int(math.Round(float64(acc.aqiSum) / float64(acc.aqiCnt)))
+		}
+		meanPM25 := 0.0
+		if acc.pm25Cnt > 0 {
+			meanPM25 = math.Round((acc.pm25Sum/float64(acc.pm25Cnt))*10) / 10
+		}
+		meanPM10 := 0.0
+		if acc.pm10Cnt > 0 {
+			meanPM10 = math.Round((acc.pm10Sum/float64(acc.pm10Cnt))*10) / 10
+		}
+		if meanAQI == 0 && meanPM25 > 0 {
+			meanAQI = calcUSAQI(meanPM25)
+		}
+		outAQI = append(outAQI, meanAQI)
+		outPM25 = append(outPM25, meanPM25)
+		outPM10 = append(outPM10, meanPM10)
+	}
+	if len(outAQI) > 7 {
+		outAQI = outAQI[len(outAQI)-7:]
+		outPM25 = outPM25[len(outPM25)-7:]
+		outPM10 = outPM10[len(outPM10)-7:]
+	}
+	return outAQI, outPM25, outPM10
+}
+
+func (w *Widgets) fetchHistoricalAQI(ctx context.Context, p Place, year int, now time.Time) *YearComparison {
+	startDate := time.Date(year, now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -6).Format("2006-01-02")
+	endDate := time.Date(year, now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).Format("2006-01-02")
+	q := url.Values{}
+	q.Set("latitude", fmt.Sprintf("%.4f", p.Lat))
+	q.Set("longitude", fmt.Sprintf("%.4f", p.Lon))
+	q.Set("start_date", startDate)
+	q.Set("end_date", endDate)
+	q.Set("hourly", "pm10,pm2_5,us_aqi")
+	q.Set("timezone", "auto")
+
+	var r struct {
+		Hourly struct {
+			Time  []string  `json:"time"`
+			USAQI []int     `json:"us_aqi"`
+			PM10  []float64 `json:"pm10"`
+			PM25  []float64 `json:"pm2_5"`
+		} `json:"hourly"`
+	}
+	hctx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+	if err := w.getJSON(hctx, "https://air-quality-api.open-meteo.com/v1/air-quality?"+q.Encode(), &r); err != nil {
+		return nil
+	}
+	a, p25, p10 := dailyAverages(r.Hourly.Time, r.Hourly.USAQI, r.Hourly.PM25, r.Hourly.PM10)
+	if len(a) == 0 {
+		return nil
+	}
+	return &YearComparison{
+		Year: year,
+		AQI:  a,
+		PM25: p25,
+		PM10: p10,
+	}
+}
+
+func (w *Widgets) airQuality(ctx context.Context, p Place) (any, error) {
+	q := url.Values{}
+	q.Set("latitude", fmt.Sprintf("%.4f", p.Lat))
+	q.Set("longitude", fmt.Sprintf("%.4f", p.Lon))
+	q.Set("current", "us_aqi,european_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone")
+	q.Set("hourly", "us_aqi,pm10,pm2_5")
+	q.Set("past_days", "7")
+	q.Set("forecast_days", "1")
+	q.Set("timezone", "auto")
+
+	var r struct {
+		Current struct {
+			USAQI       int     `json:"us_aqi"`
+			EuropeanAQI int     `json:"european_aqi"`
+			PM10        float64 `json:"pm10"`
+			PM25        float64 `json:"pm2_5"`
+			CO          float64 `json:"carbon_monoxide"`
+			NO2         float64 `json:"nitrogen_dioxide"`
+			SO2         float64 `json:"sulphur_dioxide"`
+			O3          float64 `json:"ozone"`
+		} `json:"current"`
+		Hourly struct {
+			Time  []string  `json:"time"`
+			USAQI []int     `json:"us_aqi"`
+			PM10  []float64 `json:"pm10"`
+			PM25  []float64 `json:"pm2_5"`
+		} `json:"hourly"`
+	}
+
+	if err := w.getJSON(ctx, "https://air-quality-api.open-meteo.com/v1/air-quality?"+q.Encode(), &r); err != nil {
+		return nil, err
+	}
+
+	aqi := r.Current.USAQI
+	if aqi <= 0 && r.Current.PM25 > 0 {
+		aqi = calcUSAQI(r.Current.PM25)
+	}
+
+	out := AirQuality{
+		Place:       p.Name,
+		AQI:         aqi,
+		EuropeanAQI: r.Current.EuropeanAQI,
+		Status:      aqiStatus(aqi),
+		Dominant:    dominantPollutant(r.Current.PM25, r.Current.PM10, r.Current.NO2, r.Current.O3),
+		PM25:        math.Round(r.Current.PM25*10) / 10,
+		PM10:        math.Round(r.Current.PM10*10) / 10,
+		NO2:         math.Round(r.Current.NO2*10) / 10,
+		O3:          math.Round(r.Current.O3*10) / 10,
+		SO2:         math.Round(r.Current.SO2*10) / 10,
+		CO:          math.Round(r.Current.CO*10) / 10,
+	}
+
+	// 24-hour hourly series for trend
+	n := len(r.Hourly.Time)
+	if n > 0 {
+		start := n - 24
+		if start < 0 {
+			start = 0
+		}
+		for i := start; i < n; i++ {
+			t := r.Hourly.Time[i]
+			if len(t) >= 16 && strings.Contains(t, "T") {
+				t = t[11:16]
+			}
+			hAQI := 0
+			if i < len(r.Hourly.USAQI) {
+				hAQI = r.Hourly.USAQI[i]
+			}
+			var hPM25, hPM10 float64
+			if i < len(r.Hourly.PM25) {
+				hPM25 = r.Hourly.PM25[i]
+			}
+			if i < len(r.Hourly.PM10) {
+				hPM10 = r.Hourly.PM10[i]
+			}
+			if hAQI == 0 && hPM25 > 0 {
+				hAQI = calcUSAQI(hPM25)
+			}
+			out.Hourly = append(out.Hourly, AirQualityHourly{
+				Time: t,
+				AQI:  hAQI,
+				PM25: math.Round(hPM25*10) / 10,
+				PM10: math.Round(hPM10*10) / 10,
+			})
+		}
+	}
+
+	// 7-day daily history for current year
+	curAQI, curPM25, curPM10 := dailyAverages(r.Hourly.Time, r.Hourly.USAQI, r.Hourly.PM25, r.Hourly.PM10)
+	now := time.Now()
+	currYear := now.Year()
+	history := []YearComparison{
+		{
+			Year: currYear,
+			AQI:  curAQI,
+			PM25: curPM25,
+			PM10: curPM10,
+		},
+	}
+
+	// Historical comparison against previous years (2025, 2024)
+	var hwg sync.WaitGroup
+	var y2025, y2024 *YearComparison
+	hwg.Add(2)
+	go func() {
+		defer hwg.Done()
+		y2025 = w.fetchHistoricalAQI(ctx, p, currYear-1, now)
+	}()
+	go func() {
+		defer hwg.Done()
+		y2024 = w.fetchHistoricalAQI(ctx, p, currYear-2, now)
+	}()
+	hwg.Wait()
+
+	if y2025 != nil {
+		history = append(history, *y2025)
+	}
+	if y2024 != nil {
+		history = append(history, *y2024)
+	}
+	out.History = history
+
+	return out, nil
+}
+
 func (w *Widgets) Places(ctx context.Context, q string) ([]Place, error) {
 	q = strings.TrimSpace(q)
 	if len(q) < 2 || len(q) > 80 {
@@ -762,6 +1086,7 @@ type CheckSummary = []CheckResult
 type WidgetData struct {
 	Status   WidgetResult[CheckSummary] `json:"status"`
 	Weather  WidgetResult[[]Weather]    `json:"weather"` // one per city
+	AQI      WidgetResult[[]AirQuality] `json:"aqi"`     // one per city
 	News     WidgetResult[[]News]       `json:"news"`    // one per city (or one for top stories)
 	Currency WidgetResult[Currency]     `json:"currency"`
 	Markets  WidgetResult[[]Quote]      `json:"markets"`
@@ -813,6 +1138,30 @@ func (w *Widgets) All(ctx context.Context, s WidgetSettings) WidgetData {
 			}
 			cw.Wait()
 			out.Weather = collect(list, errs)
+		})
+	}
+	if hidden(s, "aqi") {
+		out.AQI.Off = true
+	} else if len(s.Places) > 0 {
+		places := s.Places
+		run(func() {
+			list := make([]*AirQuality, len(places))
+			errs := make([]string, len(places))
+			var cw sync.WaitGroup
+			for i, p := range places {
+				cw.Add(1)
+				go func(i int, p Place) {
+					defer cw.Done()
+					key := fmt.Sprintf("aqi:%.3f,%.3f", p.Lat, p.Lon)
+					d, e := w.cachedFetch(ctx, key, 15*time.Minute, func(ctx context.Context) (any, error) { return w.airQuality(ctx, p) })
+					if v, ok := d.(AirQuality); ok {
+						list[i] = &v
+					}
+					errs[i] = e
+				}(i, p)
+			}
+			cw.Wait()
+			out.AQI = collect(list, errs)
 		})
 	}
 	if hidden(s, "news") {

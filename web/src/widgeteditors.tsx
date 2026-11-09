@@ -74,6 +74,7 @@ export function withScheme(raw: string) {
 function pick(kind: WKey, w: WidgetSettings): Partial<WidgetSettings> {
   switch (kind) {
     case 'weather':
+    case 'aqi':
       return { places: w.places, units: w.units }
     case 'news':
       return { newsScope: w.newsScope, sources: w.sources }
@@ -92,7 +93,7 @@ function pick(kind: WKey, w: WidgetSettings): Partial<WidgetSettings> {
   }
 }
 
-const WIDE: Record<WKey, boolean> = { weather: false, news: true, currency: false, markets: true, clock: false, notes: false, links: true, status: true }
+const WIDE: Record<WKey, boolean> = { weather: false, aqi: false, news: true, currency: false, markets: true, clock: false, notes: false, links: true, status: true }
 
 type Edit = { w: WidgetSettings; set: (patch: Partial<WidgetSettings>) => void }
 
@@ -301,6 +302,7 @@ function StatusBody({ w, set }: Edit) {
 
 const BODIES: Record<WKey, (e: Edit) => ReactNode> = {
   weather: (e) => <WeatherBody {...e} />,
+  aqi: (e) => <WeatherBody {...e} />,
   news: (e) => <NewsBody {...e} />,
   currency: (e) => <CurrencyBody {...e} />,
   markets: (e) => <MarketsBody {...e} />,
@@ -403,6 +405,8 @@ function summary(k: WKey, w: WidgetSettings): string {
   switch (k) {
     case 'weather':
       return w.places.length ? `${w.places.map((p) => p.name).join(', ')} · ${w.units === 'imperial' ? '°F' : '°C'}` : 'No city chosen yet'
+    case 'aqi':
+      return w.places.length ? `${w.places.map((p) => p.name).join(', ')}` : 'Uses weather cities'
     case 'news':
       return `${w.newsScope === 'off' ? 'Google News off' : w.newsScope === 'top' ? 'Top stories' : 'Your cities'} · ${(w.sources || []).length} publisher${(w.sources || []).length === 1 ? '' : 's'}`
     case 'currency':

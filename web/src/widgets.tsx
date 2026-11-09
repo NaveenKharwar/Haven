@@ -6,6 +6,7 @@ import { QR } from './diagnosis'
 import { Ctx } from './context'
 import { Widget } from './widgetshell'
 import { ClockWidget, LinksWidget, NotesWidget, StatusWidget } from './extrawidgets'
+import { AirQualityWidget } from './airquality'
 import { EditCta, EditPencil } from './widgeteditors'
 import { PRIVATE_KEYS, W_DEFAULT, W_NAMES, type WKey } from './widgetmeta'
 
@@ -52,7 +53,7 @@ export function pct(n: number) {
 
 // --- shells ---------------------------------------------------------------------
 
-function Problem({ text }: { text?: string }) {
+export function Problem({ text }: { text?: string }) {
   const admin = useContext(Ctx)?.role === 'admin'
   const [testing, setTesting] = useState(false)
   if (!text) return null
@@ -132,7 +133,7 @@ function ConnectionTest({ host, onClose }: { host: string; onClose: () => void }
 // --- weather --------------------------------------------------------------------
 
 /** Tabs that scroll sideways: with the mouse wheel, with arrows, or by touch. */
-function CityTabs({ names, value, onChange }: { names: string[]; value: number; onChange: (i: number) => void }) {
+export function CityTabs({ names, value, onChange }: { names: string[]; value: number; onChange: (i: number) => void }) {
   const box = useRef<HTMLDivElement>(null)
   const [edge, setEdge] = useState({ left: false, right: false })
   const measure = () => {
@@ -413,8 +414,20 @@ export function WidgetBoard({ data }: { data: WidgetData | null }) {
 
   const savedOrder = ((data.settings?.order || W_DEFAULT) as WKey[]).filter((k) => W_DEFAULT.includes(k))
   const savedHidden = (data.settings?.hidden || []) as WKey[]
+  const fullOrder = [...savedOrder]
+  for (const k of W_DEFAULT) {
+    if (!fullOrder.includes(k)) {
+      if (k === 'aqi') {
+        const wIdx = fullOrder.indexOf('weather')
+        if (wIdx !== -1) fullOrder.splice(wIdx + 1, 0, 'aqi')
+        else fullOrder.push('aqi')
+      } else {
+        fullOrder.push(k)
+      }
+    }
+  }
   const begin = () => {
-    setOrder(savedOrder.length === W_DEFAULT.length ? savedOrder : W_DEFAULT)
+    setOrder(fullOrder)
     setHiddenKeys(savedHidden)
     setErr('')
     setEditing(true)
@@ -445,6 +458,8 @@ export function WidgetBoard({ data }: { data: WidgetData | null }) {
     switch (k) {
       case 'weather':
         return <WeatherWidget list={data.weather.data} error={data.weather.error} />
+      case 'aqi':
+        return <AirQualityWidget list={data.aqi?.data} error={data.aqi?.error} />
       case 'markets':
         return <MarketsWidget quotes={data.markets.data} error={data.markets.error} />
       case 'currency':
@@ -462,9 +477,9 @@ export function WidgetBoard({ data }: { data: WidgetData | null }) {
     }
   }
 
-  const keys = editing ? order : savedOrder.length === W_DEFAULT.length ? savedOrder : W_DEFAULT
+  const keys = editing ? order : fullOrder
   // A widget is off when it was hidden, or (for the older four) turned off in Settings.
-  const isOff = (k: WKey) => (k === 'weather' || k === 'markets' || k === 'currency' || k === 'news' ? !!data[k].off : k === 'status' ? !!data.status?.off || savedHidden.includes(k) : savedHidden.includes(k))
+  const isOff = (k: WKey) => (k === 'weather' || k === 'aqi' || k === 'markets' || k === 'currency' || k === 'news' ? !!data[k]?.off || savedHidden.includes(k) : k === 'status' ? !!data.status?.off || savedHidden.includes(k) : savedHidden.includes(k))
   // Someone who can't edit has nothing to see in an empty note, link list or check list.
   const emptyForViewer = (k: WKey) => (k === 'notes' && !(data.settings.notes || '').trim()) || (k === 'links' && !(data.settings.links || []).length) || (k === 'status' && !(data.settings.checks || []).length)
   const viewerHides = (k: WKey) => (PRIVATE_KEYS.includes(k) && !manager) || (!admin && emptyForViewer(k))

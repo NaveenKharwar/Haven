@@ -257,9 +257,39 @@ export type Quote = {
   local?: { price: number; currency: string; unit: string }
   error?: string
 }
+export type AirQualityHourly = {
+  time: string
+  aqi: number
+  pm25: number
+  pm10: number
+}
+
+export type YearComparison = {
+  year: number
+  aqi: number[]
+  pm25: number[]
+  pm10: number[]
+}
+
+export type AirQuality = {
+  place: string
+  aqi: number
+  europeanAqi?: number
+  status: 'Good' | 'Moderate' | 'Sensitive' | 'Unhealthy' | 'Very Unhealthy' | 'Hazardous'
+  dominant: string
+  pm25: number
+  pm10: number
+  no2: number
+  o3: number
+  so2: number
+  co: number
+  hourly: AirQualityHourly[]
+  history?: YearComparison[]
+}
+
 type W<T> = { data?: T; error?: string; off?: boolean }
 export type CheckResult = { name: string; target: string; up: boolean; pending?: boolean; ms?: number; error?: string; since?: string }
-export type WidgetData = { status: W<CheckResult[]>; weather: W<Weather[]>; news: W<News[]>; currency: W<CurrencyData>; markets: W<Quote[]>; settings: WidgetSettings }
+export type WidgetData = { status: W<CheckResult[]>; weather: W<Weather[]>; aqi?: W<AirQuality[]>; news: W<News[]>; currency: W<CurrencyData>; markets: W<Quote[]>; settings: WidgetSettings }
 
 export type Role = 'admin' | 'manager' | 'member' | 'guest'
 export type AuthStatus = { setupRequired: boolean; authenticated: boolean; user?: string; role?: Role; apps?: string[]; version: string; repo?: string; author?: string; authorUrl?: string }

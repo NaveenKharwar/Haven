@@ -65,11 +65,12 @@ type NetTest struct {
 
 // Hosts the widgets use. The test only ever contacts these.
 var widgetHosts = map[string]bool{
-	"api.open-meteo.com":           true,
-	"geocoding-api.open-meteo.com": true,
-	"news.google.com":              true,
-	"api.frankfurter.dev":          true,
-	"query1.finance.yahoo.com":     true,
+	"api.open-meteo.com":             true,
+	"air-quality-api.open-meteo.com": true,
+	"geocoding-api.open-meteo.com":   true,
+	"news.google.com":                true,
+	"api.frankfurter.dev":            true,
+	"query1.finance.yahoo.com":       true,
 }
 
 func testHost(ctx context.Context, host string) NetTest {

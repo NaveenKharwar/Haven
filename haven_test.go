@@ -1402,7 +1402,7 @@ func TestWidgetTestOnlyContactsWidgetHosts(t *testing.T) {
 func TestWidgetOrderIsCleaned(t *testing.T) {
 	w := WidgetSettings{Order: []string{"news", "bogus", "weather", "news"}, Hidden: []string{"markets", "x", "markets"}}
 	w.normalize()
-	if got := strings.Join(w.Order, ","); got != "news,weather,markets,currency,clock,notes,links,status" {
+	if got := strings.Join(w.Order, ","); got != "news,weather,aqi,markets,currency,clock,notes,links,status" {
 		t.Errorf("order = %s", got)
 	}
 	if got := strings.Join(w.Hidden, ","); got != "markets" {
@@ -1410,8 +1410,64 @@ func TestWidgetOrderIsCleaned(t *testing.T) {
 	}
 	empty := WidgetSettings{}
 	empty.normalize()
-	if got := strings.Join(empty.Order, ","); got != "weather,markets,currency,news,clock,notes,links,status" {
+	if got := strings.Join(empty.Order, ","); got != "weather,aqi,markets,currency,news,clock,notes,links,status" {
 		t.Errorf("default order = %s", got)
+	}
+}
+
+func TestAirQualityCalculations(t *testing.T) {
+	if got := aqiStatus(25); got != "Good" {
+		t.Errorf("aqiStatus(25) = %s, want Good", got)
+	}
+	if got := aqiStatus(75); got != "Moderate" {
+		t.Errorf("aqiStatus(75) = %s, want Moderate", got)
+	}
+	if got := aqiStatus(125); got != "Sensitive" {
+		t.Errorf("aqiStatus(125) = %s, want Sensitive", got)
+	}
+	if got := aqiStatus(175); got != "Unhealthy" {
+		t.Errorf("aqiStatus(175) = %s, want Unhealthy", got)
+	}
+	if got := aqiStatus(250); got != "Very Unhealthy" {
+		t.Errorf("aqiStatus(250) = %s, want Very Unhealthy", got)
+	}
+	if got := aqiStatus(350); got != "Hazardous" {
+		t.Errorf("aqiStatus(350) = %s, want Hazardous", got)
+	}
+
+	if got := dominantPollutant(90, 40, 10, 20); got != "PM2.5" {
+		t.Errorf("dominantPollutant = %s, want PM2.5", got)
+	}
+	if got := dominantPollutant(10, 100, 10, 20); got != "PM10" {
+		t.Errorf("dominantPollutant = %s, want PM10", got)
+	}
+
+	if got := calcUSAQI(10.0); got < 0 || got > 50 {
+		t.Errorf("calcUSAQI(10.0) = %d, want 0-50", got)
+	}
+	if got := calcUSAQI(70.0); got < 151 || got > 200 {
+		t.Errorf("calcUSAQI(70.0) = %d, want 151-200", got)
+	}
+
+	times := []string{
+		"2026-11-08T00:00", "2026-11-08T12:00",
+		"2026-11-09T00:00", "2026-11-09T12:00",
+	}
+	aqis := []int{100, 120, 160, 180}
+	pm25s := []float64{35.0, 45.0, 75.0, 85.0}
+	pm10s := []float64{50.0, 70.0, 110.0, 130.0}
+	a, p25, p10 := dailyAverages(times, aqis, pm25s, pm10s)
+	if len(a) != 2 || len(p25) != 2 || len(p10) != 2 {
+		t.Fatalf("dailyAverages returned unexpected length: %d", len(a))
+	}
+	if a[0] != 110 || a[1] != 170 {
+		t.Errorf("dailyAverages AQI = %v, want [110, 170]", a)
+	}
+	if p25[0] != 40.0 || p25[1] != 80.0 {
+		t.Errorf("dailyAverages PM2.5 = %v, want [40.0, 80.0]", p25)
+	}
+	if p10[0] != 60.0 || p10[1] != 120.0 {
+		t.Errorf("dailyAverages PM10 = %v, want [60.0, 120.0]", p10)
 	}
 }
 
