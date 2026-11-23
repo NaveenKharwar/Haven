@@ -78,7 +78,10 @@ func (m *Manager) appDir(id string) string  { return filepath.Join(m.dir, "apps"
 func (m *Manager) dataDir(id string) string { return filepath.Join(m.dir, "appdata", id) }
 
 func (m *Manager) compose(id string, args ...string) []string {
-	dir := m.appDir(id)
+	return composeAt(id, m.appDir(id), args...)
+}
+
+func composeAt(id, dir string, args ...string) []string {
 	base := []string{"compose", "--progress", "plain", "--project-name", projectName(id),
 		"--project-directory", dir, "-f", filepath.Join(dir, "compose.yml"), "--env-file", filepath.Join(dir, ".env")}
 	return append(base, args...)
@@ -709,7 +712,7 @@ func (m *Manager) Install(ctx context.Context, catalogID, id string, version str
 			return errors.New("the app failed to start")
 		}
 		m.usageChanged(id, false)
-		if err := m.waitHealthy(ctx, j, id, startTimeout(app)); err != nil {
+		if err := m.waitHealthy(ctx, j, id, startTimeout(app), true); err != nil {
 			m.dumpLogs(j, id)
 			return fmt.Errorf("%w. The app was kept so you can read its logs, change settings, or uninstall it", err)
 		}
@@ -794,7 +797,7 @@ func (m *Manager) InstallCustom(ctx context.Context, id, name, compose, webPort 
 			return errors.New("the app failed to start")
 		}
 		m.usageChanged(id, false)
-		if err := m.waitHealthy(ctx, j, id, 120*time.Second); err != nil {
+		if err := m.waitHealthy(ctx, j, id, 120*time.Second, true); err != nil {
 			m.dumpLogs(j, id)
 			return err
 		}
@@ -804,8 +807,8 @@ func (m *Manager) InstallCustom(ctx context.Context, id, name, compose, webPort 
 
 // waitHealthy waits until every container is running (and healthy, if it
 // has a health check) for several checks in a row. This catches apps that
-// start and then crash a few seconds later.
-func (m *Manager) waitHealthy(ctx context.Context, j *Job, id string, timeout time.Duration) error {
+// start and then crash a few seconds later. Rollback requires confirmed health.
+func (m *Manager) waitHealthy(ctx context.Context, j *Job, id string, timeout time.Duration, allowStarting bool) error {
 	j.Logf("Waiting for the app to become healthy (up to %s)", timeout)
 	deadline := time.Now().Add(timeout)
 	stable := 0
@@ -823,9 +826,11 @@ func (m *Manager) waitHealthy(ctx context.Context, j *Job, id string, timeout ti
 		}
 		allUp := len(mine) > 0
 		startingOnly := allUp
+		running := false
 		for _, c := range mine {
 			switch c.State {
 			case "running":
+				running = true
 				if c.Health == "unhealthy" {
 					allUp, startingOnly = false, false
 				} else if c.Health == "starting" {
@@ -846,7 +851,7 @@ func (m *Manager) waitHealthy(ctx context.Context, j *Job, id string, timeout ti
 				allUp, startingOnly = false, false
 			}
 		}
-		if allUp {
+		if allUp && (allowStarting || running) {
 			stable++
 			if stable >= 3 {
 				return nil
@@ -855,7 +860,7 @@ func (m *Manager) waitHealthy(ctx context.Context, j *Job, id string, timeout ti
 			stable = 0
 		}
 		if time.Now().After(deadline) {
-			if startingOnly {
+			if allowStarting && startingOnly {
 				j.Logf("The app is running but still finishing its first start; it should be ready shortly")
 				return nil
 			}
@@ -913,7 +918,7 @@ func (m *Manager) Action(id, action string) (*Job, error) {
 			if meta != nil {
 				ca, _ = m.cat.Get(meta.CatalogID)
 			}
-			if err := m.waitHealthy(ctx, j, id, startTimeout(ca)); err != nil {
+			if err := m.waitHealthy(ctx, j, id, startTimeout(ca), true); err != nil {
 				m.dumpLogs(j, id)
 				return err
 			}
@@ -1012,11 +1017,6 @@ func (m *Manager) runUpdate(ctx context.Context, j *Job, id string, meta *AppMet
 	if err != nil {
 		return err
 	}
-	restoreFiles := func() {
-		_ = writeFileAtomic(composePath, oldCompose, 0o644)
-		_ = writeFileAtomic(envPath, oldEnv, 0o600)
-	}
-
 	ver := meta.Version
 	if app != nil {
 		if ver == "" {
@@ -1043,8 +1043,7 @@ func (m *Manager) runUpdate(ctx context.Context, j *Job, id string, meta *AppMet
 			return err
 		}
 		if err := writeFileAtomic(composePath, []byte(app.Compose), 0o644); err != nil {
-			restoreFiles()
-			return err
+			return errors.Join(err, m.restoreAppConfig(id, oldCompose, oldEnv))
 		}
 		for _, sub := range appDataSubdirs(app.Compose) {
 			_ = mkdirOwned(filepath.Join(m.dataDir(id), sub))
@@ -1053,13 +1052,12 @@ func (m *Manager) runUpdate(ctx context.Context, j *Job, id string, meta *AppMet
 
 	j.Logf("Downloading new images")
 	if err := m.docker.stream(ctx, j, m.compose(id, "pull", "--ignore-buildable")...); err != nil {
-		restoreFiles()
-		return pullFailure(j, "could not download new images") // nothing was changed
+		return errors.Join(pullFailure(j, "could not download new images"), m.restoreAppConfig(id, oldCompose, oldEnv))
 	}
 	j.Logf("Restarting with the new version")
 	upErr := m.docker.stream(ctx, j, m.compose(id, "up", "-d", "--remove-orphans")...)
 	if upErr == nil {
-		upErr = m.waitHealthy(ctx, j, id, startTimeout(app))
+		upErr = m.waitHealthy(ctx, j, id, startTimeout(app), true)
 	}
 	m.usageChanged(id, false)
 	if upErr == nil {
@@ -1071,26 +1069,69 @@ func (m *Manager) runUpdate(ctx context.Context, j *Job, id string, meta *AppMet
 		return nil
 	}
 
+	return m.rollbackApp(ctx, j, id, startTimeout(app), upErr, oldCompose, oldEnv, oldImages)
+}
+
+func (m *Manager) restoreAppConfig(id string, oldCompose, oldEnv []byte) error {
+	dir := m.appDir(id)
+	composeErr := writeFileAtomic(filepath.Join(dir, "compose.yml"), oldCompose, 0o644)
+	envPath := filepath.Join(dir, ".env")
+	var envErr error
+	if oldEnv == nil {
+		envErr = os.Remove(envPath)
+		if errors.Is(envErr, os.ErrNotExist) {
+			envErr = nil
+		}
+	} else {
+		envErr = writeFileAtomic(envPath, oldEnv, 0o600)
+	}
+	if err := errors.Join(composeErr, envErr); err != nil {
+		return fmt.Errorf("could not restore the previous app configuration: %w", err)
+	}
+	return nil
+}
+
+// rollbackApp returns a failed job result even when the previous version recovers.
+func (m *Manager) rollbackApp(ctx context.Context, j *Job, id string, timeout time.Duration, cause error, oldCompose, oldEnv []byte, oldImages map[string]string) error {
 	m.dumpLogs(j, id)
-	j.Logf("Update failed (%v). Rolling back to the previous version", upErr)
-	restoreFiles()
+	j.Logf("App change failed (%v). Rolling back to the previous version", cause)
+	if err := m.restoreAppConfig(id, oldCompose, oldEnv); err != nil {
+		return fmt.Errorf("rollback failed: %w", err)
+	}
+	// Recovery needs its own time budget if the original change timed out.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout+time.Minute)
+	defer cancel()
 	for ref, imgID := range oldImages {
-		_ = m.docker.stream(ctx, j, "tag", imgID, ref)
+		if err := m.docker.stream(ctx, j, "tag", imgID, ref); err != nil {
+			return fmt.Errorf("rollback could not restore the previous image for %s: %w", ref, err)
+		}
 	}
-	if err := m.docker.stream(ctx, j, m.compose(id, "up", "-d", "--remove-orphans")...); err != nil {
-		return errors.New("update failed and rollback could not start the app; check the logs")
+	if err := m.docker.stream(ctx, j, m.compose(id, "up", "-d", "--remove-orphans", "--pull", "never")...); err != nil {
+		return fmt.Errorf("rollback could not start the previous version: %w", err)
 	}
-	if err := m.waitHealthy(ctx, j, id, startTimeout(app)); err != nil {
-		return errors.New("update failed; rolled back, but the app is not healthy yet")
+	if err := m.waitHealthy(ctx, j, id, timeout, false); err != nil {
+		return fmt.Errorf("rollback could not be verified because the previous version did not become healthy: %w", err)
 	}
-	return errors.New("update failed; the previous version was restored and is running")
+	return errors.New("the app change failed. The previous version was restored and is running")
 }
 
 // Reconfigure changes an installed app's settings and/or version and restarts it,
 // restoring the old settings if the app fails to come back.
 func (m *Manager) Reconfigure(ctx context.Context, id string, values map[string]string, newVersion string) (*Job, error) {
+	if !appIDRe.MatchString(id) {
+		return nil, errors.New("app not found")
+	}
+	if err := m.lock(id, "reconfigure"); err != nil {
+		return nil, err
+	}
+	jobStarted := false
+	defer func() {
+		if !jobStarted {
+			m.unlock(id)
+		}
+	}()
 	meta, err := m.readMeta(id)
-	if err != nil || !appIDRe.MatchString(id) {
+	if err != nil {
 		return nil, errors.New("app not found")
 	}
 	app, ok := m.cat.Get(meta.CatalogID)
@@ -1116,8 +1157,14 @@ func (m *Manager) Reconfigure(ctx context.Context, id string, values map[string]
 	if err != nil {
 		return nil, err
 	}
-	oldEnv, _ := os.ReadFile(envPath)
-	oldCompose, _ := os.ReadFile(composePath)
+	oldEnv, err := os.ReadFile(envPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	oldCompose, err := os.ReadFile(composePath)
+	if err != nil {
+		return nil, err
+	}
 	var errs []string
 	var newPaths []string
 	others := m.portsInUseByApps()
@@ -1166,56 +1213,55 @@ func (m *Manager) Reconfigure(ctx context.Context, id string, values map[string]
 		env.set("APP_VERSION", newVersion)
 		env.set("VERSION", newVersion)
 	}
-	if err := m.lock(id, "reconfigure"); err != nil {
-		return nil, err
-	}
+	jobStarted = true
 	return m.jobs.Start(id, "reconfigure", 20*time.Minute, func(ctx context.Context, j *Job) error {
 		defer m.unlock(id)
-		restore := func() {
-			_ = writeFileAtomic(envPath, oldEnv, 0o600)
-			_ = writeFileAtomic(composePath, oldCompose, 0o644)
+		var oldImages map[string]string
+		if versionChanged {
+			j.Logf("Recording current versions for rollback")
+			var err error
+			oldImages, err = m.docker.ImageIDs(ctx, projectName(id))
+			if err != nil {
+				return fmt.Errorf("could not record the previous images for rollback: %w", err)
+			}
 		}
 		for _, p := range newPaths {
 			if err := mkdirOwned(p); err != nil {
 				return err
 			}
 		}
-		if versionChanged && oldCompose != nil {
-			composeStr := string(oldCompose)
-			if !strings.Contains(composeStr, "${APP_VERSION}") && meta.Version != "" {
-				updatedCompose := strings.ReplaceAll(composeStr, ":"+meta.Version, ":${APP_VERSION}")
-				_ = writeFileAtomic(composePath, []byte(updatedCompose), 0o644)
-			}
-		}
 		if err := env.write(envPath); err != nil {
-			restore()
 			return err
 		}
 		if versionChanged {
+			composeStr := string(oldCompose)
+			if !strings.Contains(composeStr, "${APP_VERSION}") && meta.Version != "" {
+				updatedCompose := strings.ReplaceAll(composeStr, ":"+meta.Version, ":${APP_VERSION}")
+				if err := writeFileAtomic(composePath, []byte(updatedCompose), 0o644); err != nil {
+					return errors.Join(err, m.restoreAppConfig(id, oldCompose, oldEnv))
+				}
+			}
 			j.Logf("Downloading images for version %s", newVersion)
 			if err := m.docker.stream(ctx, j, m.compose(id, "pull", "--ignore-buildable")...); err != nil {
-				restore()
-				return pullFailure(j, "could not download images for version "+newVersion)
+				return errors.Join(pullFailure(j, "could not download images for version "+newVersion), m.restoreAppConfig(id, oldCompose, oldEnv))
 			}
 		}
 		j.Logf("Applying new settings")
 		err := m.docker.stream(ctx, j, m.compose(id, "up", "-d", "--remove-orphans")...)
 		if err == nil {
-			err = m.waitHealthy(ctx, j, id, startTimeout(app))
+			err = m.waitHealthy(ctx, j, id, startTimeout(app), true)
 		}
-		if err == nil {
-			if versionChanged {
-				meta.Version = newVersion
-				_ = m.writeMeta(meta)
+		if err == nil && versionChanged {
+			meta.Version = newVersion
+			err = m.writeMeta(meta)
+			if err == nil {
 				j.Logf("Version updated to %s", newVersion)
 			}
+		}
+		if err == nil {
 			return nil
 		}
-		m.dumpLogs(j, id)
-		j.Logf("New settings failed; restoring previous settings")
-		restore()
-		_ = m.docker.stream(ctx, j, m.compose(id, "up", "-d", "--remove-orphans")...)
-		return errors.New("the new settings did not work, so the previous settings were restored")
+		return m.rollbackApp(ctx, j, id, startTimeout(app), err, oldCompose, oldEnv, oldImages)
 	}), nil
 }
 

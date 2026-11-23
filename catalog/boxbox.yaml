@@ -6,6 +6,7 @@ description: A clean, modern web file manager built with SvelteKit and Go. Brows
 icon: https://raw.githubusercontent.com/jR4dh3y/BoxBox/master/frontend/static/logo-boxbox-3d.svg
 website: https://github.com/jR4dh3y/BoxBox
 version: v0.3.1
+added: "2026-11-07"
 archs: [amd64, arm64]
 screenshots:
   - https://raw.githubusercontent.com/jR4dh3y/BoxBox/master/.github/assets/screenshot-browse.jpg

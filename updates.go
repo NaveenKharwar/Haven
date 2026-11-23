@@ -677,7 +677,7 @@ func (u *UpdateChecker) Snapshot() UpdatesSnapshot {
 
 // UpdateMany updates several apps one after another in a single job. One
 // failing app doesn't stop the others, and each rolls back by itself.
-func (m *Manager) UpdateMany(ids []string, prune bool) (*Job, error) {
+func (m *Manager) UpdateMany(ids []string, prune bool, backupDestination *string) (*Job, error) {
 	if len(ids) == 0 || len(ids) > 60 {
 		return nil, errors.New("choose at least one app")
 	}
@@ -688,43 +688,32 @@ func (m *Manager) UpdateMany(ids []string, prune bool) (*Job, error) {
 		}
 		seen[id] = true
 	}
-	return m.jobs.Start("updates", "update-all", 3*time.Hour, func(ctx context.Context, j *Job) error {
+	action, backupDir := "update-all", ""
+	if backupDestination != nil {
+		dest, err := directoryPath(strings.TrimSpace(*backupDestination))
+		if err != nil {
+			return nil, fmt.Errorf("backup destination: %w", err)
+		}
+		action, backupDir = "update-with-backup", dest
+	}
+	return m.jobs.Start("updates", action, 3*time.Hour, func(ctx context.Context, j *Job) error {
 		var failed []string
+		updated := false
 		for n, id := range ids {
-			meta, err := m.readMeta(id)
+			if err := ctx.Err(); err != nil {
+				return fmt.Errorf("app updates stopped before %s: %w", id, err)
+			}
+			j.Logf("[%d/%d] Processing %s", n+1, len(ids), id)
+			name, err := m.updateBatchApp(ctx, j, id, backupDir)
 			if err != nil {
-				failed = append(failed, id)
-				continue
-			}
-			j.Logf("[%d/%d] Updating %s", n+1, len(ids), meta.Name)
-			var app *CatalogApp
-			if !meta.Custom {
-				a, ok := m.cat.Get(meta.CatalogID)
-				if !ok {
-					j.Logf("%s is no longer in the catalog; skipped", meta.Name)
-					failed = append(failed, meta.Name)
-					continue
-				}
-				app = a
-			}
-			if err := m.lock(id, "update"); err != nil {
-				j.Logf("Skipped %s: %v", meta.Name, err)
-				failed = append(failed, meta.Name)
-				continue
-			}
-			err = m.runUpdate(ctx, j, id, meta, app)
-			m.unlock(id)
-			if m.onUpdated != nil {
-				m.onUpdated(id)
-			}
-			if err != nil {
-				j.Logf("%s: %v", meta.Name, err)
-				failed = append(failed, meta.Name)
+				j.Logf("%s: %v", name, err)
+				failed = append(failed, name)
 			} else {
-				j.Logf("%s is up to date", meta.Name)
+				updated = true
+				j.Logf("%s is up to date", name)
 			}
 		}
-		if prune {
+		if prune && (backupDir == "" || updated) {
 			j.Logf("Removing old images that nothing uses")
 			_ = m.docker.stream(ctx, j, "image", "prune", "-f")
 		}
@@ -733,4 +722,42 @@ func (m *Manager) UpdateMany(ids []string, prune bool) (*Job, error) {
 		}
 		return nil
 	}), nil
+}
+
+func (m *Manager) updateBatchApp(ctx context.Context, j *Job, id, backupDir string) (string, error) {
+	attemptedUpdate := false
+	if err := m.lock(id, "update"); err != nil {
+		return id, err
+	}
+	defer func() {
+		m.unlock(id)
+		if attemptedUpdate && m.onUpdated != nil {
+			m.onUpdated(id)
+		}
+	}()
+
+	meta, err := m.readMeta(id)
+	if err != nil {
+		return id, err
+	}
+	var app *CatalogApp
+	if !meta.Custom {
+		var ok bool
+		app, ok = m.cat.Get(meta.CatalogID)
+		if !ok {
+			return meta.Name, errors.New("app is no longer in the catalog")
+		}
+	}
+	if backupDir != "" {
+		j.Logf("Backing up %s before updating", meta.Name)
+		if err := m.backupApp(ctx, j, id, backupDir, nil); err != nil {
+			return meta.Name, fmt.Errorf("backup failed, so the app was skipped: %w", err)
+		}
+		if err := ctx.Err(); err != nil {
+			return meta.Name, fmt.Errorf("backup finished, but the update timed out: %w", err)
+		}
+	}
+	j.Logf("Updating %s", meta.Name)
+	attemptedUpdate = true
+	return meta.Name, m.runUpdate(ctx, j, id, meta, app)
 }

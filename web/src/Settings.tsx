@@ -87,6 +87,72 @@ function PairTv() {
 
 const ROLE_WORD: Record<string, string> = { admin: 'Administrator', manager: 'Manager', member: 'Member', guest: 'Guest' }
 
+function ProfilePanel({ onLogout, onDisplayNameChange }: { onLogout: () => void; onDisplayNameChange: (name: string) => void }) {
+  const { user, displayName, role, version } = useHaven()
+  const name = displayName || user
+  const [draft, setDraft] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
+  const value = draft ?? displayName
+
+  const save = async (event: FormEvent) => {
+    event.preventDefault()
+    if (busy || value.trim() === displayName) return
+    setBusy(true)
+    setError('')
+    setSaved(false)
+    try {
+      const updated = await api.saveDisplayName(value)
+      onDisplayNameChange(updated.displayName)
+      setDraft(null)
+      setSaved(true)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Panel title="Profile">
+      <div className="flex items-center gap-4">
+        <Avatar name={name} size={56} />
+        <div className="min-w-0">
+          <bdi className="block truncate text-xl font-semibold">{name}</bdi>
+          <div className="font-mono text-xs text-muted">{ROLE_WORD[role] || role} · signed in on this device</div>
+        </div>
+      </div>
+      <form onSubmit={save} className="mt-5 grid max-w-sm gap-3">
+        <label className="space-y-2">
+          <span className="etch block">Name</span>
+          <input
+            className="field w-full"
+            autoComplete="name"
+            value={value}
+            disabled={busy}
+            aria-invalid={!!error}
+            aria-describedby={error ? 'profile-name-help profile-name-error' : 'profile-name-help'}
+            onChange={(event) => {
+              setDraft(event.target.value)
+              setError('')
+              setSaved(false)
+            }}
+          />
+        </label>
+        <p id="profile-name-help" className="text-xs text-muted">Leave blank to show your username, <bdi className="font-mono">{user}</bdi>.</p>
+        {error && <div id="profile-name-error"><ErrorLine>{error}</ErrorLine></div>}
+        <div className="flex flex-wrap items-center gap-3">
+          <button className="key key-primary" disabled={busy || value.trim() === displayName} data-loading={busy}>Save name</button>
+          <span role="status" className="text-xs text-muted">{saved ? 'Name saved.' : ''}</span>
+        </div>
+      </form>
+      <p className="mt-5 font-mono text-xs text-muted">Haven {version} · apps live in /opt/haven/apps</p>
+      <button className="key key-danger mt-3" onClick={onLogout}><LogOut size={14} /> Sign out</button>
+    </Panel>
+  )
+}
+
 const ALL_TABS = [
   ['look', 'Appearance'],
   ['widgets', 'Widgets'],
@@ -99,8 +165,8 @@ type TabId = (typeof ALL_TABS)[number][0]
 // Only the admin changes how Haven looks or who has access. Everyone can pair a TV and change their password.
 const ADMIN_ONLY: TabId[] = ['look', 'widgets', 'people']
 
-export default function SettingsPage({ onLogout }: { onLogout: () => void }) {
-  const { user, version, role } = useHaven()
+export default function SettingsPage({ onLogout, onDisplayNameChange }: { onLogout: () => void; onDisplayNameChange: (name: string) => void }) {
+  const { role } = useHaven()
   const TABS = ALL_TABS.filter(([id]) => role === 'admin' || !ADMIN_ONLY.includes(id))
   const [tab, setTab] = useState<TabId>(() => {
     try {
@@ -203,6 +269,7 @@ export default function SettingsPage({ onLogout }: { onLogout: () => void }) {
 
       {tab === 'account' && (
         <Sections>
+          <ProfilePanel onLogout={onLogout} onDisplayNameChange={onDisplayNameChange} />
           <Panel title="Password">
             <form onSubmit={change} className="grid max-w-sm gap-4">
               <div className="space-y-2">
@@ -229,21 +296,6 @@ export default function SettingsPage({ onLogout }: { onLogout: () => void }) {
                 </button>
               </div>
             </form>
-          </Panel>
-          <Panel title="Profile">
-            <div className="flex items-center gap-4">
-              <Avatar name={user} size={56} />
-              <div className="min-w-0">
-                <div className="truncate text-xl font-semibold">{user}</div>
-                <div className="font-mono text-xs text-muted">{ROLE_WORD[role] || role} · signed in on this device</div>
-              </div>
-            </div>
-            <p className="mt-4 font-mono text-xs text-muted">Haven {version} · apps live in /opt/haven/apps</p>
-            <div className="mt-4">
-              <button className="key key-danger" onClick={onLogout}>
-                <LogOut size={14} /> Sign out
-              </button>
-            </div>
           </Panel>
         </Sections>
       )}

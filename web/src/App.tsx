@@ -1,5 +1,4 @@
 import { Component, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { Tv } from 'lucide-react'
 import { api, atLeast, isTvDevice, type AuthStatus, type CatalogApp, type Role } from './api'
 import { getMode, setMode, type DeviceMode } from './mode'
 import { defaultLiteForTv } from './tv/lite'
@@ -108,6 +107,8 @@ function WebApp() {
     <>
       <Shell
         user={auth.user || ''}
+        displayName={auth.displayName || ''}
+        onDisplayNameChange={(displayName) => setAuth((current) => current?.user === auth.user && current?.authenticated ? { ...current, displayName } : current)}
         role={auth.role || 'guest'}
         version={auth.version}
         repo={auth.repo}
@@ -154,7 +155,7 @@ class PageGuard extends Component<{ children: React.ReactNode }, { failed: boole
   }
 }
 
-function Shell({ user, role, version, repo, author, authorUrl, onLogout }: { user: string; role: Role; version: string; repo?: string; author: string; authorUrl?: string; onLogout: () => void }) {
+function Shell({ user, displayName, onDisplayNameChange, role, version, repo, author, authorUrl, onLogout }: { user: string; displayName: string; onDisplayNameChange: (name: string) => void; role: Role; version: string; repo?: string; author: string; authorUrl?: string; onLogout: () => void }) {
   const nav = useMemo(() => allNav.filter((n) => atLeast(role, n.min)).map((n) => (n.id === 'server' && role !== 'admin' ? { ...n, label: 'Files' } : n)), [role])
   // The address bar is the only source of truth for the page, so the two can't drift apart.
   const route = useSyncExternalStore(subscribePath, routeFromHash)
@@ -203,6 +204,7 @@ function Shell({ user, role, version, repo, author, authorUrl, onLogout }: { use
   const ctx: HavenCtx = useMemo(
     () => ({
       user,
+      displayName,
       role,
       version,
       repo,
@@ -221,7 +223,7 @@ function Shell({ user, role, version, repo, author, authorUrl, onLogout }: { use
       navigate,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user, role, version, repo, author, authorUrl, data, catalog, sys, upd, navigate],
+    [user, displayName, role, version, repo, author, authorUrl, data, catalog, sys, upd, navigate],
   )
   const updates = ctx.updatesCount
 
@@ -268,11 +270,8 @@ function Shell({ user, role, version, repo, author, authorUrl, onLogout }: { use
               </span>
               <BatteryHeaderItem battery={sys?.battery} />
             </span>
-            <button className="key key-sm hidden xl:inline-flex" onClick={enterTv} title="Open TV mode">
-              <Tv size={14} /> TV
-            </button>
-            {atLeast(role, 'manager') && <NotificationBell onOpenRoute={navigate} />}
-            <ProfileMenu user={user} role={role} onSettings={() => navigate('settings')} onTv={enterTv} onLogout={onLogout} />
+            {atLeast(role, 'manager') && <NotificationBell destinations={nav} onOpenRoute={navigate} />}
+            <ProfileMenu user={user} displayName={displayName} role={role} onSettings={() => navigate('settings')} onTv={enterTv} onLogout={onLogout} />
           </div>
         </div>
 
@@ -305,7 +304,7 @@ function Shell({ user, role, version, repo, author, authorUrl, onLogout }: { use
           {allowed && route === 'catalog' && <CatalogPage />}
           {allowed && route === 'updates' && <UpdatesPage />}
           {allowed && route === 'server' && <ServerPage />}
-          {allowed && route === 'settings' && <SettingsPage onLogout={onLogout} />}
+          {allowed && route === 'settings' && <SettingsPage onLogout={onLogout} onDisplayNameChange={onDisplayNameChange} />}
         </div>
         </PageGuard>
         <Footer key={`footer-${route}`} />

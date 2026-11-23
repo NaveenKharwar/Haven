@@ -47,22 +47,27 @@ type NewsSource struct {
 }
 
 type WidgetSettings struct {
-	Sources    []NewsSource `json:"sources"`         // publisher feeds shown next to the Google News tabs
-	Places     []Place      `json:"places"`          // up to 5; the first is the main one
-	Place      *Place       `json:"place,omitempty"` // older single-city setting, migrated into Places
-	Units      string       `json:"units"`           // metric or imperial
-	Home       string       `json:"home"`            // home currency, e.g. INR
-	Currencies []string     `json:"currencies"`
-	Markets    []string     `json:"markets"`   // Yahoo symbols, e.g. GC=F, ^NSEI, RELIANCE.NS
-	NewsScope  string       `json:"newsScope"` // local or top
-	Hidden     []string     `json:"hidden"`    // widgets switched off: weather, news, currency, markets
-	Order      []string     `json:"order"`     // left-to-right order of the widgets on the Overview
+	Sources    []NewsSource          `json:"sources"`         // publisher feeds shown next to the Google News tabs
+	Places     []Place               `json:"places"`          // up to 5; the first is the main one
+	Place      *Place                `json:"place,omitempty"` // older single-city setting, migrated into Places
+	Units      string                `json:"units"`           // metric or imperial
+	Home       string                `json:"home"`            // home currency, e.g. INR
+	Currencies []string              `json:"currencies"`
+	Markets    []string              `json:"markets"`   // Yahoo symbols, e.g. GC=F, ^NSEI, RELIANCE.NS
+	NewsScope  string                `json:"newsScope"` // local or top
+	Hidden     []string              `json:"hidden"`    // widgets switched off: weather, news, currency, markets
+	Order      []string              `json:"order"`     // left-to-right order of the widgets on the Overview
+	Sizes      map[string]WidgetSize `json:"sizes,omitempty"`
 
 	Clocks      []string      `json:"clocks"`      // time zones shown next to the local time, e.g. Asia/Kolkata
 	ClockFormat string        `json:"clockFormat"` // "24" or "12" hour time
 	Notes       string        `json:"notes"`       // the shared sticky note
 	Links       []QuickLink   `json:"links"`       // quick links
 	Checks      []StatusCheck `json:"checks"`      // things to watch
+}
+
+type WidgetSize struct {
+	Width string `json:"width,omitempty"`
 }
 
 type QuickLink struct {
@@ -111,6 +116,15 @@ func (w *WidgetSettings) normalize() {
 	}
 	w.Order = cleanKeys(w.Order, true)
 	w.Hidden = cleanKeys(w.Hidden, false)
+	sizes := make(map[string]WidgetSize)
+	for _, key := range widgetKeys {
+		size := w.Sizes[key]
+		switch size.Width {
+		case "compact", "half", "full":
+			sizes[key] = size
+		}
+	}
+	w.Sizes = sizes
 }
 
 // cleanKeys keeps only known widget names, once each. With fill, any widget

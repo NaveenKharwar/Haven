@@ -6,6 +6,7 @@ description: "A self-hosted file-processing platform with over 200 utilities for
 icon: https://cdn.jsdelivr.net/gh/snapotter-hq/SnapOtter@v2.3.0/apps/web/public/logo.png
 website: https://snapotter.com
 version: "2.3.0"
+added: "2026-11-08"
 archs: [amd64, arm64]
 min_ram_mb: 2048
 start_timeout: 300

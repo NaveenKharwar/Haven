@@ -39,11 +39,12 @@ export default function PeoplePanel() {
             <li key={p.username} className="flex flex-wrap items-center gap-3 py-3">
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold">{p.username}</span>
+                  <bdi className="min-w-0 break-all font-semibold">{p.displayName || p.username}</bdi>
                   {p.username.toLowerCase() === user.toLowerCase() && <span className="text-xs text-muted">(you)</span>}
                   <span className={cx('tag', p.role === 'admin' && 'tag-accent')}>{p.role === 'admin' && <Crown size={11} className="mr-1" />}{roleWord[p.role]}</span>
                   {p.disabled && <span className="tag text-bad">Disabled</span>}
                 </span>
+                {p.displayName && p.displayName !== p.username && <span className="mt-0.5 block font-mono text-xs text-muted">{p.username}</span>}
                 {(p.role === 'member' || p.role === 'guest') && (
                   <span className="mt-0.5 block text-xs text-muted">{p.apps.length === 0 ? 'No apps shared yet' : `${p.apps.length} app${p.apps.length === 1 ? '' : 's'}: ${p.apps.join(', ')}`}</span>
                 )}

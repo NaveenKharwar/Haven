@@ -1,9 +1,9 @@
-import { ArrowUpRight, Plus } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { api, appUrl, atLeast, formatBytes, formatUptime, ledState, splitBytes, statusWord, timeOf, type InstalledApp } from './api'
-import { AppIcon, Ladder, Led, Readout, Trace, cx, usePoll } from './components'
+import { ChevronDown } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { api, atLeast, formatBytes, formatUptime, splitBytes, timeOf } from './api'
+import { ErrorLine, Ladder, Led, Readout, Trace, cx, usePoll } from './components'
 import { useHaven } from './context'
-import { UsageRanking, UsageStrip } from './usage'
+import { UsageRanking } from './usage'
 import { WidgetBoard, useWidgets } from './widgets'
 
 function Cell({ label, spec, children, foot }: { label: string; spec?: ReactNode; children: ReactNode; foot?: ReactNode }) {
@@ -19,80 +19,59 @@ function Cell({ label, spec, children, foot }: { label: string; spec?: ReactNode
   )
 }
 
-export function AppModule({ app, onOpen }: { app: InstalledApp; onOpen: () => void }) {
-  const url = app.status !== 'stopped' ? appUrl(app.web, app.webPort) : null
-  const led = ledState(app.status, app.busy)
+function OverviewDisclosure({ title, hint, children }: { title: string; hint: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
   return (
-    <div className="plate group relative flex min-w-0 flex-col bg-raised transition-[border-color] hover:border-rule-hi">
-      <button onClick={onOpen} className="absolute inset-0 z-0 rounded-[3px]" aria-label={`Manage ${app.name}`} />
-      <div className="pointer-events-none relative flex items-center justify-between border-b border-rule-2 px-3 py-2">
-        <span className="flex items-center gap-2">
-          <Led s={led} />
-          <span className={cx('etch', led === 'bad' && 'text-bad', led === 'busy' && 'text-accent')}>{statusWord(app.status, app.busy)}</span>
+    <details className="overview-disclosure group/disclosure plate min-w-0" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="plate-head cursor-pointer list-none border-b-0 hover:bg-raised focus-visible:outline-offset-[-2px] group-open/disclosure:border-b">
+        <span className="etch">{title}</span>
+        <span className="flex items-center gap-2" aria-hidden>
+          <span className="hidden text-xs text-muted sm:inline">{hint}</span>
+          <ChevronDown size={15} className="text-muted transition-transform group-open/disclosure:rotate-180" />
         </span>
-        <span className="vent" aria-hidden>
-          <i />
-          <i />
-          <i />
-        </span>
-      </div>
-      <div className="pointer-events-none relative flex items-center gap-3 px-3 py-4">
-        <AppIcon src={app.icon} name={app.name} size={40} />
-        <span className="min-w-0">
-          <span className="block truncate font-semibold">{app.name}</span>
-          <span className="block truncate font-mono text-xs text-muted">{app.webPort ? `:${app.webPort}` : app.id}</span>
-        </span>
-      </div>
-      <UsageStrip app={app} className="pointer-events-none relative mx-3 mb-3" />
-      <div className="relative z-10 mt-auto flex gap-2 px-3 pb-3">
-        {url ? (
-          <a href={url} target="_blank" rel="noreferrer" className="key key-sm flex-1">
-            Open <ArrowUpRight size={13} />
-          </a>
-        ) : (
-          <span className="key key-sm flex-1" aria-disabled="true">
-            Not running
-          </span>
-        )}
-        {app.updateAvailable && <span className="tag tag-accent self-center">Update</span>}
-      </div>
-    </div>
+      </summary>
+      {open && children}
+    </details>
   )
 }
 
-const actionLabel: Record<string, string> = { install: 'Install', uninstall: 'Remove', update: 'Update', start: 'Start', stop: 'Stop', restart: 'Restart', reconfigure: 'Settings' }
+const actionLabel: Record<string, string> = {
+  install: 'Install', uninstall: 'Remove', update: 'Update', 'update-all': 'Updates', 'update-with-backup': 'Updates',
+  start: 'Start', stop: 'Stop', restart: 'Restart', reconfigure: 'Settings', backup: 'Back up', restore: 'Restore',
+}
 
 function Activity() {
-  const { data } = usePoll(api.jobs, 5000)
-  const jobs = (data || []).slice(0, 9)
-  return (
-    <section className="plate flex flex-col" aria-labelledby="activity-h">
-      <div className="plate-head">
-        <h2 id="activity-h" className="etch">
-          Activity
-        </h2>
-        <span className="etch text-[0.625rem]">Since Haven started</span>
+  const { data, error, refresh } = usePoll(api.jobs, 5000)
+  if (!data) {
+    return error ? (
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+        <ErrorLine>{error}</ErrorLine>
+        <button className="key key-sm" onClick={refresh}>Try again</button>
       </div>
-      {jobs.length === 0 ? (
-        <p className="p-4 text-sm text-muted">Nothing yet. Installs, updates and restarts are logged here.</p>
-      ) : (
-        <ol className="divide-y divide-rule-2">
-          {jobs.map((j) => (
-            <li key={j.id} className="flex items-center gap-3 px-4 py-3 font-mono text-xs">
-              <span className="text-muted">{timeOf(j.started)}</span>
-              <span className="w-16 shrink-0 uppercase tracking-wider text-ink-2">{actionLabel[j.action] || j.action}</span>
-              <span className="min-w-0 flex-1 truncate">{j.app}</span>
-              <Led s={j.status === 'running' ? 'busy' : j.status === 'success' ? 'ok' : 'bad'} label={j.status} />
-            </li>
-          ))}
-        </ol>
-      )}
-    </section>
+    ) : <p role="status" className="p-4 text-sm text-muted">Loading activity…</p>
+  }
+
+  const jobs = data.slice(0, 9)
+  if (jobs.length === 0) {
+    return <p className="p-4 text-sm text-muted">Nothing yet. Installs, updates and restarts are logged here.</p>
+  }
+
+  return (
+    <ol className="divide-y divide-rule-2">
+      {jobs.map((j) => (
+        <li key={j.id} className="flex items-center gap-3 px-4 py-3 font-mono text-xs">
+          <span className="shrink-0 text-muted">{timeOf(j.started)}</span>
+          <span className="w-16 shrink-0 truncate uppercase tracking-wider text-ink-2" title={actionLabel[j.action] || j.action}>{actionLabel[j.action] || j.action}</span>
+          <span className="min-w-0 flex-1 truncate" title={j.app}>{j.app}</span>
+          <Led s={j.status === 'running' ? 'busy' : j.status === 'success' ? 'ok' : 'bad'} label={j.status} />
+        </li>
+      ))}
+    </ol>
   )
 }
 
 export default function Overview() {
-  const { apps, appsReady, sys, navigate, openApp, role } = useHaven()
+  const { apps, appsReady, sys, openApp, role } = useHaven()
   const manage = atLeast(role, 'manager')
   const { data: widgets } = useWidgets()
   const hist = sys?.history || []
@@ -183,44 +162,15 @@ export default function Overview() {
 
       <WidgetBoard data={widgets} />
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <section aria-labelledby="apps-h">
-          <div className="mb-3 flex min-h-10 items-center justify-between gap-3 border-b border-rule pb-2">
-            <h2 id="apps-h" className="etch">
-              Apps · {appsReady ? apps.length : '…'}
-            </h2>
-            {manage && (
-              <button className="key key-sm" onClick={() => navigate('catalog')}>
-                <Plus size={13} /> Add app
-              </button>
-            )}
-          </div>
-          {!appsReady ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-hidden>
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="plate h-[9.5rem] bg-well" />
-              ))}
-            </div>
-          ) : apps.length === 0 && !manage ? (
-            <p className="rounded-[3px] border border-dashed border-rule-hi px-6 py-12 text-center text-sm text-muted">No apps have been shared with you yet. Ask the admin to give you access.</p>
-          ) : apps.length === 0 ? (
-            <button onClick={() => navigate('catalog')} className="flex w-full flex-col items-center gap-2 rounded-[3px] border border-dashed border-rule-hi px-6 py-12 text-center hover:border-accent">
-              <span className="etch">Empty slot</span>
-              <span className="font-semibold">Install your first app</span>
-              <span className="max-w-sm text-sm text-muted">Pick something from the catalog. Haven checks the server first, then sets it up.</span>
-            </button>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {apps.map((a) => (
-                <AppModule key={a.id} app={a} onOpen={() => openApp(a.id)} />
-              ))}
-            </div>
-          )}
-        </section>
-        <div className="space-y-5">
-          <UsageRanking apps={apps} memTotal={sys?.memTotal} onOpen={openApp} />
-          {manage && <Activity />}
-        </div>
+      <div className={cx('grid grid-cols-1 items-start gap-3', manage && 'md:grid-cols-2')}>
+        <OverviewDisclosure title="Usage by app" hint="By memory">
+          <UsageRanking apps={apps} ready={appsReady} memTotal={sys?.memTotal} onOpen={openApp} />
+        </OverviewDisclosure>
+        {manage && (
+          <OverviewDisclosure title="Activity" hint="Recent jobs">
+            <Activity />
+          </OverviewDisclosure>
+        )}
       </div>
     </div>
   )

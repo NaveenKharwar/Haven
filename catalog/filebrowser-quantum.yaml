@@ -6,6 +6,7 @@ description: A fast, feature-rich web file explorer fork of FileBrowser. Browse,
 icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/file-browser.png
 website: https://filebrowserquantum.com
 version: stable
+added: "2026-11-07"
 archs: [amd64, arm64]
 screenshots:
   - https://filebrowserquantum.com/images/generated/listing/view-mode-normal-dark.jpg

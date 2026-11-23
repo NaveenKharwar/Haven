@@ -22,6 +22,7 @@ export type CatalogApp = {
   icon: string
   website?: string
   version: string
+  added?: string
   archs: string[]
   minRamMb?: number
   notes?: string
@@ -212,6 +213,7 @@ export type WidgetSettings = {
   sources: { name: string; url: string }[]
   hidden: string[] | null
   order?: string[]
+  sizes?: import('./widgetmeta').WidgetSizes
   clocks?: string[]
   clockFormat?: '24' | '12'
   notes?: string
@@ -292,11 +294,11 @@ export type CheckResult = { name: string; target: string; up: boolean; pending?:
 export type WidgetData = { status: W<CheckResult[]>; weather: W<Weather[]>; aqi?: W<AirQuality[]>; news: W<News[]>; currency: W<CurrencyData>; markets: W<Quote[]>; settings: WidgetSettings }
 
 export type Role = 'admin' | 'manager' | 'member' | 'guest'
-export type AuthStatus = { setupRequired: boolean; authenticated: boolean; user?: string; role?: Role; apps?: string[]; version: string; repo?: string; author?: string; authorUrl?: string }
+export type AuthStatus = { setupRequired: boolean; authenticated: boolean; user?: string; displayName?: string; role?: Role; apps?: string[]; version: string; repo?: string; author?: string; authorUrl?: string }
 export type ReleaseNote = { version: string; notes?: string; url?: string; published?: string }
 export type SelfStatus = { supported: boolean; reason?: string; current: string; latest?: string; available: boolean; notes?: string; url?: string; checked?: string; error?: string; repo?: string; versions?: ReleaseNote[]; more?: number }
 export type NetTest = { host: string; steps: { name: string; ok: boolean; detail: string; ms?: number }[]; verdict: string; fix?: string; works: boolean }
-export type Person = { username: string; role: Role; disabled: boolean; apps: string[]; created?: string }
+export type Person = { username: string; displayName?: string; role: Role; disabled: boolean; apps: string[]; created?: string }
 const RANK: Record<Role, number> = { guest: 1, member: 2, manager: 3, admin: 4 }
 /** True when a role is at least as powerful as another. The server checks this too. */
 export const atLeast = (role: Role | undefined, min: Role) => (role ? RANK[role] : 0) >= RANK[min]
@@ -333,15 +335,25 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   return data as T
 }
 
+export type UploadProgress = { offset: number; done: boolean }
 export type FileEntry = { name: string; path: string; dir: boolean; size: number; mod: string; mode: string; link?: boolean }
 export type FileListing = { path: string; parent?: string; entries: FileEntry[]; total: number }
 export type FilesInfo = { full: boolean; roots: { name: string; path: string; extra?: boolean }[] }
 export type CleanupItem = { id: string; title: string; info: string; bytes: number; note?: string; hint?: string; path?: string }
 export type FolderSize = { name: string; path: string; bytes: number }
+export type BackupItem = { kind: 'config' | 'data' | 'volume' | 'folder'; name: string; path: string }
+export type BackupPlan = { items: BackupItem[]; omitted: string[]; images: string[] }
+export type BackupManifest = BackupPlan & { appId: string; appName: string; created: string }
 
 const q = encodeURIComponent
 
 export const api = {
+  backupPlan: (id: string) => request<BackupPlan>('GET', `/api/apps/${q(id)}/backup`),
+  createBackup: (id: string, destination: string, folders: string[]) =>
+    request<Job>('POST', `/api/apps/${q(id)}/backup`, { destination, folders }),
+  inspectBackup: (path: string) => request<BackupManifest>('POST', '/api/backups/inspect', { path }),
+  restoreBackup: (path: string, appId: string, restoreFolders: boolean) =>
+    request<Job>('POST', '/api/backups/restore', { path, appId, restoreFolders }),
   widgetTest: (host: string) => request<NetTest>('GET', `/api/widgets/test?host=${encodeURIComponent(host)}`),
   selfUpdate: () => request<SelfStatus>('GET', '/api/haven/update'),
   selfUpdateCheck: () => request<SelfStatus>('POST', '/api/haven/update/check'),
@@ -362,26 +374,30 @@ export const api = {
   filesDelete: (paths: string[]) => request('POST', '/api/files/delete', { paths }),
   filesAccess: (body: { full?: boolean; accept?: boolean; add?: string; remove?: string }) => request<FilesInfo>('POST', '/api/files/access', body),
   filesDownloadUrl: (path: string, inline = false) => `/api/files/download?path=${q(path)}${inline ? '&inline=1' : ''}`,
-  filesUpload: (dir: string, file: File, onProgress: (frac: number) => void) =>
-    new Promise<void>((resolve, reject) => {
+  fileUploadStatus: (query: URLSearchParams) => request<UploadProgress>('GET', `/api/files/upload?${query}`),
+  fileUploadChunk: (query: URLSearchParams, body: Blob, signal: AbortSignal, onProgress: (bytes: number) => void) =>
+    new Promise<UploadProgress>((resolve, reject) => {
+      if (signal.aborted) return reject(signal.reason)
       const x = new XMLHttpRequest()
-      x.open('POST', `/api/files/upload?path=${q(dir)}`)
+      const abort = () => x.abort()
+      x.open('PUT', `/api/files/upload?${query}`)
       x.setRequestHeader('X-Haven', '1')
-      x.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total)
+      x.responseType = 'json'
+      x.timeout = 120_000
+      x.upload.onprogress = (e) => onProgress(e.loaded)
       x.onload = () => {
-        if (x.status >= 200 && x.status < 300) return resolve()
-        let msg = `Upload failed (${x.status})`
-        try {
-          msg = JSON.parse(x.responseText).error || msg
-        } catch {
-          /* not json */
+        if ((x.status === 200 || x.status === 409) && typeof x.response?.offset === 'number') {
+          resolve(x.response as UploadProgress)
+        } else {
+          if (x.status === 401) window.dispatchEvent(new Event('haven:unauthorized'))
+          reject(new ApiError(x.response?.error || `Upload failed (${x.status})`, x.status))
         }
-        reject(new Error(msg))
       }
-      x.onerror = () => reject(new Error('Upload failed: connection lost'))
-      const fd = new FormData()
-      fd.append('file', file, file.name)
-      x.send(fd)
+      x.onerror = x.ontimeout = () => reject(new ApiError('The upload connection was interrupted.', 0))
+      x.onabort = () => reject(signal.reason)
+      x.onloadend = () => signal.removeEventListener('abort', abort)
+      signal.addEventListener('abort', abort, { once: true })
+      x.send(body)
     }),
   cleanupScan: () => request<{ items: CleanupItem[] }>('GET', '/api/cleanup'),
   cleanupRun: (ids: string[]) => request<Job>('POST', '/api/cleanup/run', { ids }),
@@ -395,6 +411,7 @@ export const api = {
   resetPassword: (token: string, username: string, password: string) =>
     request<{ ok: boolean; username: string }>('POST', '/api/auth/reset-password', { token, username, password }),
   changePassword: (current: string, next: string) => request('POST', '/api/auth/password', { current, new: next }),
+  saveDisplayName: (displayName: string) => request<{ displayName: string }>('PUT', '/api/auth/profile', { displayName }),
   system: () => request<SystemInfo>('GET', '/api/system'),
   catalog: () => request<CatalogApp[]>('GET', '/api/catalog'),
   catalogVersions: (id: string) => request<VersionInfo>('GET', `/api/catalog/${id}/versions`),
@@ -446,10 +463,11 @@ export const api = {
   lanOnly: () => request<{ interfaces: string[] }>('POST', '/api/host/name/lan-only'),
   updates: () => request<UpdatesSnapshot>('GET', '/api/updates'),
   checkUpdates: () => request('POST', '/api/updates/check'),
-  applyUpdates: (ids: string[], prune: boolean) => request<Job>('POST', '/api/updates/apply', { ids, prune }),
-  notifications: () => request<{ items: Notification[]; unread: number }>('GET', '/api/notifications'),
-  readNotifications: (ids: number[] | 'all') => request('POST', '/api/notifications/read', ids === 'all' ? { all: true } : { ids }),
-  clearNotifications: (all: boolean) => request('POST', '/api/notifications/clear', { all }),
+  applyUpdates: (ids: string[], prune: boolean, backupDestination?: string) =>
+    request<Job>('POST', '/api/updates/apply', { ids, prune, backupDestination }),
+  notifications: () => request<NotificationFeed>('GET', '/api/notifications'),
+  readNotifications: (ids: number[] | 'all', read = true) => request<NotificationFeed>('POST', '/api/notifications/read', ids === 'all' ? { all: true, read } : { ids, read }),
+  dismissNotifications: (ids: number[]) => request<NotificationFeed>('POST', '/api/notifications/clear', { ids }),
   network: () => request<NetworkStatus>('GET', '/api/network'),
   wifiScan: () => request<WifiNetwork[]>('GET', '/api/network/wifi'),
   wifiConnect: (ssid: string, password: string, hidden: boolean) => request<Job>('POST', '/api/network/wifi/connect', { ssid, password, hidden }),
@@ -490,6 +508,7 @@ export type AppUpdate = { id: string; name: string; icon?: string; version?: str
 export type SystemUpdates = { supported: boolean; dockerCurrent?: string; dockerNew?: string; upgradable: number; command?: string }
 export type UpdatesSnapshot = { apps: AppUpdate[]; checked: string; checking: boolean; system: SystemUpdates; lastError?: string }
 export type Notification = { id: number; time: string; level: 'info' | 'ok' | 'warn' | 'bad'; title: string; body?: string; route?: string; job?: string; read: boolean }
+export type NotificationFeed = { items: Notification[]; unread: number }
 
 /** Tells every screen that widget or background settings changed. */
 export function announceUIChange() {

@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -45,6 +46,7 @@ type CatalogApp struct {
 	Icon         string    `yaml:"icon" json:"icon"`
 	Website      string    `yaml:"website" json:"website,omitempty"`
 	Version      string    `yaml:"version" json:"version"`
+	Added        string    `yaml:"added" json:"added,omitempty"` // date first added to Haven's catalog
 	Archs        []string  `yaml:"archs" json:"archs"`
 	MinRAMMB     int       `yaml:"min_ram_mb" json:"minRamMb,omitempty"`
 	StartTimeout int       `yaml:"start_timeout" json:"startTimeout,omitempty"` // seconds
@@ -155,6 +157,11 @@ func validateCatalogApp(a *CatalogApp) error {
 	}
 	if a.Name == "" || a.Category == "" || a.Tagline == "" || a.Version == "" {
 		return fmt.Errorf("name, category, tagline and version are required")
+	}
+	if a.Added != "" {
+		if _, err := time.Parse(time.DateOnly, a.Added); err != nil {
+			return fmt.Errorf("added must be a date in YYYY-MM-DD format")
+		}
 	}
 	if len(a.Archs) == 0 {
 		return fmt.Errorf("archs is required")

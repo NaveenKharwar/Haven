@@ -17,12 +17,13 @@ import (
 )
 
 type User struct {
-	Username string    `json:"username"`
-	Hash     string    `json:"hash"`
-	Role     string    `json:"role,omitempty"` // admin (only one), manager, member, guest
-	Disabled bool      `json:"disabled,omitempty"`
-	Apps     []string  `json:"apps,omitempty"` // apps a member or guest may see
-	Created  time.Time `json:"created,omitempty"`
+	Username    string    `json:"username"`
+	DisplayName string    `json:"displayName,omitempty"`
+	Hash        string    `json:"hash"`
+	Role        string    `json:"role,omitempty"` // admin (only one), manager, member, guest
+	Disabled    bool      `json:"disabled,omitempty"`
+	Apps        []string  `json:"apps,omitempty"` // apps a member or guest may see
+	Created     time.Time `json:"created,omitempty"`
 }
 
 type state struct {

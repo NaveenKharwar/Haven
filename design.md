@@ -19,12 +19,17 @@ Modern-minimal, technical register. Custom theme (not from a catalog).
 
 - App pages (Overview, Apps): Workbench. A faceplate header strip with a mode
   selector, then plates. Overview leads with a hairline-gridded meter bank,
-  then a board of widget cards, then the apps.
+  then a board of widget cards. Usage by app and Activity start collapsed.
+  The installed-app list lives on Apps.
 - Updates: summary tiles first, then always in the same order: Haven, apps,
   server software. Sections never move to put the urgent one first.
 - Server and Settings: a row of tabs in a well, one section group per tab.
 - Catalog: Catalogue. A category index on the left, grouped rows on the right,
-  a spec-sheet panel for installing.
+  a spec-sheet panel for installing. New entries carry a small accent tag.
+- Notifications use a scrollable plate with All and Unread modes. Each item
+  has explicit read, dismiss and destination controls when available.
+- Files shares a selection model between list and grid. Click to select,
+  double-click or press Enter to open, and keep an Open button for touch.
 - TV: a 10-foot launcher. Meter bank on top, then horizontal rows of large
   tiles navigated with a remote.
 
@@ -67,9 +72,16 @@ these tokens can be used.
 - `<Sections>` (`.sections`): groups page sections that arrange themselves. One
   section fills the row, two share it, a short last row stretches, and they
   stack on narrow screens. Use it instead of fixed column grids.
-- `.board`: the same idea for widget cards, with equal heights per row.
+- `.board`: Overview widgets use automatic sizing by default. Compact, Half,
+  and Full width presets reserve space on wider boards. On phones every
+  widget uses the full width. Card height follows the content and the row.
 - `<Widget>`: the widget card (plate, header, body). Each has a pencil in its
-  header that opens its settings in a dialog.
+  header that opens its settings in a dialog. Use the card's available width
+  for its content layout. Keep primary readings and actions visible in
+  compact cards. Wider cards can reveal related detail and arrange lists
+  into columns.
+- Quick links are launch keys. A site icon, link label, hostname, and
+  external-link indicator stay visible at every width.
 - `<Modal>` dialog and `<Drawer>` side panel. Editing happens in a dialog with
   Save and Cancel; nothing saves until Save.
 - `<Suggest>`: the one search box with a list under it (arrows, Enter, Escape).
@@ -93,8 +105,12 @@ these tokens can be used.
 - Number keys 1–6 switch pages on desktop, for the pages the role can open.
 - Edit controls (a widget's pencil) appear when you point at or tab to the
   widget, and are always visible on touch screens.
-- Edit layout: drag a widget to move it; the eye hides or shows it. A hidden
-  widget keeps its place as a full-size "hidden" card, so the rows don't shift.
+- Edit layout: drag the grip with a mouse or touch, or focus it and use the
+  arrow keys. While dragging, dashed outlines mark the possible drop cards
+  and the insertion guide shows where the widget will land. Width presets
+  use segmented keys with a visible active state. Width and visibility
+  preview on the board. Save applies the shared layout, and Cancel discards
+  the draft. Hidden widgets keep their size in the editor.
 
 ## Backgrounds
 

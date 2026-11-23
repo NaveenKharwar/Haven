@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -23,9 +25,10 @@ import (
 // runs as root and could then read or change any file on the server.
 
 type Files struct {
-	store *Store
-	dir   string // Haven's data directory, e.g. /opt/haven
-	admin bool   // only the admin can use full-disk mode
+	store   *Store
+	dir     string // Haven's data directory, e.g. /opt/haven
+	admin   bool   // only the admin can use full-disk mode
+	uploads *fileUploads
 }
 
 // As returns the explorer as seen by the admin or by anyone else.
@@ -41,7 +44,7 @@ func NewFiles(store *Store, dir string) *Files {
 	if real, err := filepath.EvalSymlinks(dir); err == nil {
 		dir = real
 	}
-	return &Files{store: store, dir: dir}
+	return &Files{store: store, dir: dir, uploads: &fileUploads{dir: filepath.Join(dir, uploadStateDir)}}
 }
 
 type FileRoot struct {
@@ -89,6 +92,9 @@ func (f *Files) Resolve(p string) (string, error) {
 		return "", errors.New("invalid path")
 	}
 	p = filepath.Clean(p)
+	if within(filepath.Join(f.dir, uploadStateDir), p) || strings.HasPrefix(filepath.Base(p), uploadTempPrefix) {
+		return "", errors.New("that path is reserved for uploads")
+	}
 	real, err := filepath.EvalSymlinks(p)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -99,6 +105,9 @@ func (f *Files) Resolve(p string) (string, error) {
 			return "", err
 		}
 		real = filepath.Join(parent, filepath.Base(p))
+	}
+	if within(filepath.Join(f.dir, uploadStateDir), real) || strings.HasPrefix(filepath.Base(real), uploadTempPrefix) {
+		return "", errors.New("that path is reserved for uploads")
 	}
 	if f.fullDisk() {
 		return real, nil
@@ -192,6 +201,10 @@ func (f *Files) List(p string) (*FileListing, error) {
 		}
 	}
 	for _, de := range des {
+		if strings.HasPrefix(de.Name(), uploadTempPrefix) || (real == f.dir && de.Name() == uploadStateDir) {
+			out.Total--
+			continue
+		}
 		info, err := de.Info()
 		if err != nil {
 			continue
@@ -220,7 +233,8 @@ func (f *Files) List(p string) (*FileListing, error) {
 }
 
 func validName(n string) error {
-	if n == "" || n == "." || n == ".." || strings.ContainsAny(n, "/\x00") || len(n) > 255 {
+	if n == "" || n == "." || n == ".." || strings.ContainsAny(n, "/\x00") || len(n) > 255 ||
+		n == uploadStateDir || strings.HasPrefix(n, uploadTempPrefix) {
 		return errors.New("that name isn't allowed")
 	}
 	return nil
@@ -257,7 +271,7 @@ func (f *Files) Rename(p, name string) error {
 	if err := validName(name); err != nil {
 		return err
 	}
-	real, err := f.Resolve(p)
+	real, err := f.resolveEntry(p)
 	if err != nil {
 		return err
 	}
@@ -274,7 +288,7 @@ func (f *Files) Rename(p, name string) error {
 func (f *Files) Delete(paths []string) error {
 	var errs []string
 	for _, p := range paths {
-		real, err := f.Resolve(p)
+		real, err := f.resolveEntry(p)
 		if err == nil && f.protected(real) {
 			err = errors.New("this is a system folder and can't be deleted")
 		}
@@ -300,9 +314,15 @@ func (f *Files) Move(paths []string, to string, copy bool) error {
 	if st, err := os.Stat(dstDir); err != nil || !st.IsDir() {
 		return errors.New("the destination is not a folder")
 	}
+	type moveItem struct{ src, dst string }
+	items := make([]moveItem, 0, len(paths))
+	destinations := make(map[string]bool, len(paths))
 	for _, p := range paths {
-		src, err := f.Resolve(p)
+		src, err := f.resolveEntry(p)
 		if err != nil {
+			return err
+		}
+		if _, err := os.Lstat(src); err != nil {
 			return err
 		}
 		if !copy && f.protected(src) {
@@ -312,14 +332,24 @@ func (f *Files) Move(paths []string, to string, copy bool) error {
 			return errors.New("can't put a folder inside itself")
 		}
 		dst := filepath.Join(dstDir, filepath.Base(src))
+		if destinations[dst] {
+			return errors.New(filepath.Base(src) + " is selected more than once")
+		}
+		destinations[dst] = true
 		if _, err := os.Lstat(dst); err == nil {
 			return errors.New(filepath.Base(src) + " already exists there")
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
 		}
+		items = append(items, moveItem{src, dst})
+	}
+	for _, item := range items {
+		src, dst := item.src, item.dst
 		if copy {
 			err = copyTree(src, dst)
 		} else {
 			err = os.Rename(src, dst)
-			if err != nil { // across disks
+			if errors.Is(err, syscall.EXDEV) {
 				if err = copyTree(src, dst); err == nil {
 					err = os.RemoveAll(src)
 				}
@@ -330,6 +360,27 @@ func (f *Files) Move(paths []string, to string, copy bool) error {
 		}
 	}
 	return nil
+}
+
+// Operations on directory entries follow the parent path but keep the last
+// component intact, so renaming or deleting a symlink affects the link itself.
+func (f *Files) resolveEntry(p string) (string, error) {
+	if !filepath.IsAbs(p) || strings.ContainsRune(p, 0) {
+		return "", errors.New("invalid path")
+	}
+	p = filepath.Clean(p)
+	if p == "/" {
+		return f.Resolve(p)
+	}
+	name := filepath.Base(p)
+	if err := validName(name); err != nil {
+		return "", err
+	}
+	parent, err := f.Resolve(filepath.Dir(p))
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(parent, name), nil
 }
 
 func copyTree(src, dst string) error {
@@ -348,6 +399,12 @@ func copyTree(src, dst string) error {
 		if err := os.Mkdir(dst, st.Mode().Perm()); err != nil {
 			return err
 		}
+		complete := false
+		defer func() {
+			if !complete {
+				_ = os.RemoveAll(dst)
+			}
+		}()
 		copyOwner(src, dst)
 		des, err := os.ReadDir(src)
 		if err != nil {
@@ -358,6 +415,7 @@ func copyTree(src, dst string) error {
 				return err
 			}
 		}
+		complete = true
 		return nil
 	case st.Mode().IsRegular():
 		in, err := os.Open(src)
@@ -371,10 +429,15 @@ func copyTree(src, dst string) error {
 		}
 		if _, err := io.Copy(out, in); err != nil {
 			out.Close()
+			_ = os.Remove(dst)
 			return err
 		}
 		copyOwner(src, dst)
-		return out.Close()
+		if err := out.Close(); err != nil {
+			_ = os.Remove(dst)
+			return err
+		}
+		return nil
 	}
 	return nil // sockets, devices: skipped
 }
@@ -653,26 +716,59 @@ func (s *Server) saveUpload(dir string, part *multipart.Part) error {
 	if err := validName(name); err != nil {
 		return err
 	}
-	dst := filepath.Join(dir, name)
-	if _, err := os.Lstat(dst); err == nil {
-		return errors.New(name + " already exists in this folder")
-	}
-	tmp := dst + ".haven-upload"
-	out, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(out, part); err != nil {
-		out.Close()
-		os.Remove(tmp)
+	defer root.Close()
+	return publishUpload(root, name, part, nil)
+}
+
+const uploadTempPrefix = ".haven-upload-"
+
+// publishUpload creates the destination atomically without replacing a file.
+func publishUpload(root *os.Root, name string, in io.Reader, prepare func() error) error {
+	if err := checkUploadDestination(root, name); err != nil {
 		return err
 	}
-	if err := out.Close(); err != nil {
-		os.Remove(tmp)
+	var id [16]byte
+	rand.Read(id[:])
+	tmp := uploadTempPrefix + hex.EncodeToString(id[:])
+	out, err := root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
 		return err
 	}
-	chownLike(tmp)
-	return os.Rename(tmp, dst)
+	defer root.Remove(tmp)
+	_, copyErr := io.Copy(out, in)
+	if st, err := root.Stat("."); err == nil {
+		if sys, ok := st.Sys().(*syscall.Stat_t); ok {
+			_ = out.Chown(int(sys.Uid), int(sys.Gid))
+		}
+	}
+	syncErr := out.Sync()
+	closeErr := out.Close()
+	if err := errors.Join(copyErr, syncErr, closeErr); err != nil {
+		return err
+	}
+	if prepare != nil {
+		if err := prepare(); err != nil {
+			return err
+		}
+	}
+	if err := publishNoReplace(root, tmp, name); errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("%s already exists in this folder", name)
+	} else {
+		return err
+	}
+}
+
+func checkUploadDestination(root *os.Root, name string) error {
+	if _, err := root.Lstat(name); err == nil {
+		return fmt.Errorf("%s already exists in this folder", name)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 // filesAccess changes the access level. Full-disk needs accept=true, which

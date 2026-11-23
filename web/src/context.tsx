@@ -5,6 +5,7 @@ export type Route = 'overview' | 'apps' | 'catalog' | 'updates' | 'server' | 'se
 
 export type HavenCtx = {
   user: string
+  displayName: string
   role: Role
   version: string
   repo?: string

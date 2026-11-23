@@ -31,8 +31,13 @@ export default function UpdatesPage() {
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [touched, setTouched] = useState(false)
   const [prune, setPrune] = useState(true)
+  const [backupBeforeUpdate, setBackupBeforeUpdate] = useState(false)
+  const [backupDestination, setBackupDestination] = useState('')
   const [open, setOpen] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const backupRequested = role === 'admin' && backupBeforeUpdate
+  const destination = backupDestination.trim()
+  const updateDisabled = busy || (backupRequested && !destination)
 
   useEffect(() => setFast(!!data?.checking), [data?.checking])
   const withUpdates = useMemo(() => (data?.apps || []).filter((a) => a.hasUpdate && !a.busy), [data])
@@ -50,10 +55,10 @@ export default function UpdatesPage() {
     })
   }
   const run = async (ids: string[]) => {
-    if (ids.length === 0) return
+    if (ids.length === 0 || updateDisabled) return
     setBusy(true)
     try {
-      const job = await api.applyUpdates(ids, prune)
+      const job = await api.applyUpdates(ids, prune, backupRequested ? destination : undefined)
       openJob(job.id, ids.length === 1 ? (data?.apps.find((a) => a.id === ids[0])?.name ?? 'app') : `${ids.length} apps`)
       setTouched(false)
       refreshApps()
@@ -84,7 +89,7 @@ export default function UpdatesPage() {
   const total = withUpdates.length + (havenNeeds ? 1 : 0) + (sysNeeds ? 1 : 0)
   const headline = !data ? 'Loading…' : data.checking ? 'Checking for new versions…' : total > 0 ? `${total} thing${total === 1 ? '' : 's'} can be updated.` : data.apps.length ? 'Everything is up to date.' : 'No apps installed yet.'
   const rows = (list: AppUpdate[]) =>
-    list.map((a) => <Row key={a.id} a={a} picked={picked.has(a.id)} onPick={() => toggle(a.id)} expanded={open === a.id} onExpand={() => setOpen(open === a.id ? null : a.id)} onUpdate={() => run([a.id])} disabled={busy} />)
+    list.map((a) => <Row key={a.id} a={a} picked={picked.has(a.id)} onPick={() => toggle(a.id)} expanded={open === a.id} onExpand={() => setOpen(open === a.id ? null : a.id)} onUpdate={() => run([a.id])} disabled={updateDisabled} />)
 
   return (
     <div className="space-y-6">
@@ -137,20 +142,44 @@ export default function UpdatesPage() {
           <div className="plate-head flex-wrap gap-y-2">
             <h2 className="etch">Needs an update · {withUpdates.length}</h2>
             <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {role === 'admin' && (
+                <label className="flex items-center gap-2 text-xs text-ink-2">
+                  <input type="checkbox" className="accent-[var(--accent)]" checked={backupRequested} disabled={busy} onChange={(e) => setBackupBeforeUpdate(e.target.checked)} />
+                  Back up before updating
+                </label>
+              )}
               <label className="flex items-center gap-2 text-xs text-ink-2">
                 <input type="checkbox" className="accent-[var(--accent)]" checked={prune} onChange={(e) => setPrune(e.target.checked)} />
                 Remove old images afterwards
               </label>
               {withUpdates.length > 1 && (
-                <button className="key key-sm" disabled={busy || selected.length === 0} onClick={() => run(selected.map((a) => a.id))}>
+                <button className="key key-sm" disabled={updateDisabled || selected.length === 0} onClick={() => run(selected.map((a) => a.id))}>
                   Update selected ({selected.length})
                 </button>
               )}
-              <button className="key key-sm key-primary" disabled={busy} onClick={() => run(withUpdates.map((a) => a.id))}>
+              <button className="key key-sm key-primary" disabled={updateDisabled} onClick={() => run(withUpdates.map((a) => a.id))}>
                 Update all ({withUpdates.length})
               </button>
             </span>
           </div>
+          {backupRequested && (
+            <div className="space-y-2 border-b border-rule-2 px-3 py-3 sm:px-4">
+              <label className="block max-w-xl space-y-1 text-sm">
+                <span>Backup destination folder</span>
+                <input
+                  className="field w-full font-mono"
+                  placeholder="/mnt/backups"
+                  value={backupDestination}
+                  disabled={busy}
+                  onChange={(e) => setBackupDestination(e.target.value)}
+                  aria-describedby="update-backup-help"
+                />
+              </label>
+              <p id="update-backup-help" className="text-xs text-muted">
+                Use an existing private folder on the server. Haven skips an app if its backup fails. Use the app’s Back up dialog to include host folders.
+              </p>
+            </div>
+          )}
           <ul className="divide-y divide-rule-2">{rows(data!.apps.filter((a) => a.hasUpdate))}</ul>
         </section>
       )}
