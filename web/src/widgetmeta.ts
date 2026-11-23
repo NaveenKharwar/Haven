@@ -1,5 +1,7 @@
 // The Overview widgets: their keys, names and default order.
 export type WKey = 'weather' | 'aqi' | 'markets' | 'currency' | 'news' | 'clock' | 'notes' | 'links' | 'status'
+export type WidgetWidth = 'compact' | 'half' | 'full'
+export type WidgetSizes = Partial<Record<WKey, { width: WidgetWidth }>>
 
 export const W_NAMES: Record<WKey, string> = { weather: 'Weather', aqi: 'Air Quality', markets: 'Markets', currency: 'Currency', news: 'News', clock: 'Clock', notes: 'Notes', links: 'Quick links', status: 'Status' }
 

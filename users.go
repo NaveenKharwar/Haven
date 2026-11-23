@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -30,11 +32,12 @@ func limitedRole(role string) bool { return role == RoleMember || role == RoleGu
 
 // PublicUser is a person without their password hash.
 type PublicUser struct {
-	Username string    `json:"username"`
-	Role     string    `json:"role"`
-	Disabled bool      `json:"disabled"`
-	Apps     []string  `json:"apps"`
-	Created  time.Time `json:"created,omitempty"`
+	Username    string    `json:"username"`
+	DisplayName string    `json:"displayName,omitempty"`
+	Role        string    `json:"role"`
+	Disabled    bool      `json:"disabled"`
+	Apps        []string  `json:"apps"`
+	Created     time.Time `json:"created,omitempty"`
 }
 
 func pub(u User) PublicUser {
@@ -42,7 +45,7 @@ func pub(u User) PublicUser {
 	if apps == nil {
 		apps = []string{}
 	}
-	return PublicUser{Username: u.Username, Role: u.Role, Disabled: u.Disabled, Apps: apps, Created: u.Created}
+	return PublicUser{Username: u.Username, DisplayName: u.DisplayName, Role: u.Role, Disabled: u.Disabled, Apps: apps, Created: u.Created}
 }
 
 // migrateRoles upgrades accounts saved before roles existed: the first
@@ -85,6 +88,28 @@ func (s *Store) Person(name string) (User, bool) {
 		return u, true
 	}
 	return User{}, false
+}
+
+func (s *Store) SetDisplayName(username, displayName string) (string, error) {
+	displayName = strings.TrimSpace(displayName)
+	if utf8.RuneCountInString(displayName) > 64 || strings.IndexFunc(displayName, unicode.IsControl) >= 0 {
+		return "", errors.New("enter a name of up to 64 characters on one line")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := s.idx(username)
+	if i < 0 || s.st.Users[i].Disabled {
+		return "", errors.New("account is no longer active")
+	}
+	if s.st.Users[i].DisplayName == displayName {
+		return displayName, nil
+	}
+	old := s.snapshot()
+	s.st.Users[i].DisplayName = displayName
+	if err := s.commit(old); err != nil {
+		return "", err
+	}
+	return displayName, nil
 }
 
 func (s *Store) People() []PublicUser {

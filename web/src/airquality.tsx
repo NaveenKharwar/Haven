@@ -150,10 +150,13 @@ export function AirQualityWidget({
   const aq = dataList[idx]
   const info = getAQILevel(aq.aqi)
 
-  const trendValues =
-    aq.hourly && aq.hourly.length > 1
-      ? aq.hourly.map((h) => h.aqi)
-      : [aq.aqi * 0.9, aq.aqi * 1.05, aq.aqi * 1.1, aq.aqi * 0.95, aq.aqi]
+  const trendValues = (aq.hourly || []).map((h) => h.aqi).filter(Number.isFinite)
+  const pollutants = [
+    { name: 'PM2.5', value: aq.pm25 },
+    { name: 'PM10', value: aq.pm10 },
+    { name: 'NO₂', value: aq.no2, extra: true },
+    { name: 'O₃', value: aq.o3, extra: true },
+  ]
 
   return (
     <>
@@ -199,7 +202,7 @@ export function AirQualityWidget({
           }}
         >
           {/* Main Readout Row */}
-          <div className="flex items-baseline justify-between gap-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <div className="flex items-baseline gap-2">
               <span className="text-4xl font-mono font-semibold tracking-tight">
                 <Readout value={aq.aqi} digits={3} className={info.textClass} />
@@ -210,7 +213,7 @@ export function AirQualityWidget({
           </div>
 
           {/* Subtitle / Dominant Pollutant */}
-          <div className="mt-1 flex items-center justify-between text-xs text-muted">
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted">
             <span>
               Primary:{' '}
               <span className="font-medium text-ink-2">
@@ -220,27 +223,19 @@ export function AirQualityWidget({
             <span className="font-mono text-[0.6875rem]">US EPA</span>
           </div>
 
-          {/* Compact 2-column pollutant readout */}
-          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-rule-2 pt-2.5 font-mono text-xs">
-            <div>
-              <span className="text-muted block text-[0.6875rem]">PM2.5</span>
-              <span className="font-semibold text-ink">
-                {aq.pm25.toFixed(1)}
-              </span>{' '}
-              <span className="text-[0.6875rem] text-muted">µg/m³</span>
-            </div>
-            <div>
-              <span className="text-muted block text-[0.6875rem]">PM10</span>
-              <span className="font-semibold text-ink">
-                {aq.pm10.toFixed(1)}
-              </span>{' '}
-              <span className="text-[0.6875rem] text-muted">µg/m³</span>
-            </div>
+          <div className="widget-pollutants mt-3 grid gap-2 border-t border-rule-2 pt-2.5 font-mono text-xs">
+            {pollutants.map(({ name, value, extra }) => (
+              <div key={name} className={cx('widget-wrap min-w-0', extra && 'widget-more')}>
+                <span className="block text-[0.6875rem] text-muted">{name}</span>
+                <span className="font-semibold text-ink">{Number.isFinite(value) ? value.toFixed(1) : '—'}</span>{' '}
+                {Number.isFinite(value) && <span className="text-[0.6875rem] text-muted">µg/m³</span>}
+              </div>
+            ))}
           </div>
 
           {/* 24-hour mini trend sparkline */}
-          <div className="mt-auto pt-3">
-            <div className="flex items-center justify-between font-mono text-[0.625rem] text-muted mb-1">
+          {trendValues.length > 1 && <div className="mt-auto pt-3">
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-1 font-mono text-[0.625rem] text-muted">
               <span className="flex items-center gap-1">
                 <Activity size={10} /> 24H TREND
               </span>
@@ -250,7 +245,7 @@ export function AirQualityWidget({
               </span>
             </div>
             <Trace values={trendValues} height={26} />
-          </div>
+          </div>}
         </div>
       </Widget>
 

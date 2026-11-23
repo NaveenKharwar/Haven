@@ -6,6 +6,7 @@ description: A versatile web client for your files. Connect local folders, SFTP 
 icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/filestash.png
 website: https://www.filestash.app
 version: latest
+added: "2026-11-07"
 archs: [amd64, arm64]
 screenshots:
   - https://www.filestash.app/img/screenshots/viewerpage.png

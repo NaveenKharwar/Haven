@@ -6,6 +6,11 @@ import { useHaven } from './context'
 import { PasswordInput } from './Auth'
 import { VersionPicker } from './VersionPicker'
 
+function isNew(app: CatalogApp, now: number) {
+  const age = now - Date.parse(app.added ?? '')
+  return age >= 0 && age < 30 * 24 * 60 * 60 * 1000
+}
+
 export default function CatalogPage() {
   const { catalog, apps } = useHaven()
   const [q, setQ] = useState('')
@@ -22,6 +27,7 @@ export default function CatalogPage() {
   const s = q.trim().toLowerCase()
   const list = catalog.filter((a) => (cat === 'All' || a.category === cat) && (!s || `${a.name} ${a.tagline} ${a.category}`.toLowerCase().includes(s)))
   const groups = counts.map(([c]) => [c, list.filter((a) => a.category === c)] as const).filter(([, xs]) => xs.length > 0)
+  const now = Date.now()
 
   return (
     <div className="space-y-6">
@@ -65,8 +71,9 @@ export default function CatalogPage() {
                     <button onClick={() => setSelected(a)} className="group flex w-full items-center gap-4 px-4 py-4 text-left hover:bg-raised">
                       <AppIcon src={a.icon} name={a.name} size={40} />
                       <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-2">
+                        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="truncate font-semibold">{a.name}</span>
+                          {isNew(a, now) && <span className="tag tag-accent">New</span>}
                           {installed.has(a.id) && (
                             <span className="tag tag-ok">
                               <Led s="ok" /> Installed

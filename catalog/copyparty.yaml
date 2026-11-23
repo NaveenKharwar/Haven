@@ -6,6 +6,7 @@ description: A blazing fast, multi-client file server. Supports high-speed resum
 icon: https://cdn.jsdelivr.net/gh/selfhst/icons/png/copyparty.png
 website: https://github.com/9001/copyparty
 version: latest
+added: "2026-11-07"
 archs: [amd64, arm64]
 screenshots:
   - https://user-images.githubusercontent.com/241032/192042695-522b3ec7-6845-494a-abdb-d1c0d0e23801.png

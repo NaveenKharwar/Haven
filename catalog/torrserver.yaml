@@ -1,0 +1,27 @@
+id: torrserver
+name: TorrServer
+category: Media
+tagline: Stream videos from torrents to your media player
+description: TorrServer serves video from torrents over HTTP. Manage streams in its web interface and open them in a compatible player.
+icon: https://raw.githubusercontent.com/YouROK/TorrServer/MatriX.151/web/public/icon.png
+website: https://github.com/YouROK/TorrServer
+version: "MatriX.151"
+added: "2026-11-23"
+archs: [amd64, arm64]
+web: { port: WEB_PORT }
+notes: "Open the web interface to add media you have permission to stream. The default setup is intended for a trusted network."
+settings:
+  - key: WEB_PORT
+    label: Web port
+    type: port
+    default: "8094"
+    required: true
+compose: |
+  services:
+    torrserver:
+      image: ghcr.io/yourok/torrserver:${APP_VERSION}
+      restart: unless-stopped
+      ports:
+        - "${WEB_PORT}:8090"
+      volumes:
+        - ${APP_DATA}/data:/opt/ts

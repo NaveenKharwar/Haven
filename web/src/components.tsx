@@ -246,6 +246,7 @@ export function LogBox({ lines, className }: { lines: string[]; className?: stri
 
 const actionWord: Record<string, string> = {
   install: 'Install', uninstall: 'Uninstall', update: 'Update', start: 'Start', stop: 'Stop', restart: 'Restart', reconfigure: 'Apply settings', cleanup: 'Cleanup', 'haven-update': 'Update',
+  'update-with-backup': 'Back up and update',
 }
 
 export function useJob(jobId: string | null) {
@@ -421,7 +422,7 @@ export function usePoll<T>(fn: () => Promise<T>, ms: number, deps: unknown[] = [
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, tick])
-  return { data, error, refresh: () => setTick((t) => t + 1) }
+  return { data, error, setData, refresh: () => setTick((t) => t + 1) }
 }
 
 export function useClock() {

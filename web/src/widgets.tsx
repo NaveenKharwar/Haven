@@ -8,7 +8,8 @@ import { Widget } from './widgetshell'
 import { ClockWidget, LinksWidget, NotesWidget, StatusWidget } from './extrawidgets'
 import { AirQualityWidget } from './airquality'
 import { EditCta, EditPencil } from './widgeteditors'
-import { PRIVATE_KEYS, W_DEFAULT, W_NAMES, type WKey } from './widgetmeta'
+import { PRIVATE_KEYS, W_DEFAULT, W_NAMES, type WKey, type WidgetWidth } from './widgetmeta'
+import { useWidgetLayoutMotion, widgetOrder, type WidgetLayout } from './widgetlayout'
 
 // Widgets for the Overview (and their data helpers, shared with TV mode).
 
@@ -175,8 +176,8 @@ export function CityTabs({ names, value, onChange }: { names: string[]; value: n
       )}
       <div ref={box} className="flex min-w-0 flex-1 gap-1 overflow-x-auto px-2 py-1.5 [scrollbar-width:none]" role="tablist">
         {names.map((n, i) => (
-          <button key={n + i} role="tab" aria-selected={value === i} onClick={() => onChange(i)} className={cx('key key-sm h-7 shrink-0 border-transparent px-2 text-[0.6875rem]', value !== i && 'key-flat')}>
-            {n}
+          <button key={n + i} role="tab" aria-selected={value === i} title={n} onClick={() => onChange(i)} className={cx('key key-sm h-7 max-w-full shrink-0 border-transparent px-2 text-[0.6875rem]', value !== i && 'key-flat')}>
+            <span className="min-w-0 truncate">{n}</span>
           </button>
         ))}
       </div>
@@ -206,38 +207,44 @@ function WeatherWidget({ list, error }: { list?: Weather[]; error?: string }) {
     )
   }
   const w = list[Math.min(i, list.length - 1)]
+  const days = w.days || []
   const { label, Icon } = weatherInfo(w.code, w.isDay)
   return (
     <Widget title={list.length > 1 ? 'Weather' : `Weather · ${w.place}`} aside={<EditPencil kind="weather" />}>
       <CityTabs names={list.map((x) => x.place)} value={Math.min(i, list.length - 1)} onChange={setI} />
       <Problem text={error} />
-      <div className="flex items-center gap-4 px-4 pb-2 pt-4">
-        <Icon size={44} strokeWidth={1.4} className="shrink-0 text-accent" aria-hidden />
+      <div className="widget-weather flex-1">
         <div className="min-w-0">
-          <div className="text-5xl">
-            <span className="readout">{Math.round(w.temp)}</span>
-            <span className="readout text-2xl text-muted">°{w.units}</span>
+          <div className="flex items-center gap-3 px-4 pb-2 pt-4">
+            <Icon size={40} strokeWidth={1.4} className="shrink-0 text-accent" aria-hidden />
+            <div className="min-w-0">
+              <div className="widget-temperature">
+                <span className="readout">{Math.round(w.temp)}</span>
+                <span className="readout text-2xl text-muted">°{w.units}</span>
+              </div>
+              <div className="text-sm text-ink-2">{label}</div>
+            </div>
           </div>
-          <div className="truncate text-sm text-ink-2">{label}</div>
+          <p className="px-4 pb-4 font-mono text-[0.6875rem] text-muted">
+            feels {Math.round(w.feels)}° · humidity {w.humidity}% · wind {Math.round(w.wind)} {w.windUnits}
+          </p>
         </div>
+        {days.length > 0 && <ol className="widget-forecast grid gap-px bg-rule-2" aria-label="Daily forecast" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
+          {days.map((d, k) => {
+            const day = weatherInfo(d.code)
+            return (
+              <li key={d.date} className="flex min-w-0 flex-col items-center gap-1 bg-plate px-0.5 py-2" title={`${day.label}, ${d.rain}% chance of rain`}>
+                <span className="widget-forecast-day etch max-w-full truncate text-[0.5625rem]">{weekday(d.date, k)}</span>
+                <day.Icon size={16} className="shrink-0 text-ink-2" aria-label={day.label} />
+                <span className="text-center font-mono text-xs leading-tight">
+                  {Math.round(d.max)}°<span className="block text-muted">{Math.round(d.min)}°</span>
+                </span>
+                <span className="widget-more text-center text-[0.625rem] text-muted">{d.rain}% rain</span>
+              </li>
+            )
+          })}
+        </ol>}
       </div>
-      <p className="px-4 pb-4 font-mono text-[0.6875rem] text-muted">
-        feels {Math.round(w.feels)}° · humidity {w.humidity}% · wind {Math.round(w.wind)} {w.windUnits}
-      </p>
-      <ol className="mt-auto grid gap-px border-t border-rule-2 bg-rule-2" style={{ gridTemplateColumns: `repeat(${w.days.length || 1}, minmax(0, 1fr))` }}>
-        {w.days.map((d, k) => {
-          const day = weatherInfo(d.code)
-          return (
-            <li key={d.date} className="flex flex-col items-center gap-1 bg-plate px-1 py-2" title={`${day.label}, ${d.rain}% chance of rain`}>
-              <span className="etch text-[0.5625rem]">{weekday(d.date, k)}</span>
-              <day.Icon size={16} className="text-ink-2" aria-label={day.label} />
-              <span className="text-center font-mono text-xs leading-tight">
-                {Math.round(d.max)}°<span className="block text-muted">{Math.round(d.min)}°</span>
-              </span>
-            </li>
-          )
-        })}
-      </ol>
     </Widget>
   )
 }
@@ -249,24 +256,23 @@ function MarketsWidget({ quotes, error }: { quotes?: Quote[]; error?: string }) 
     <Widget title="Markets" aside={<span className="flex items-center gap-2"><span className="etch text-[0.5625rem]">day change</span><EditPencil kind="markets" /></span>}>
       <Problem text={error} />
       {!quotes ? (
-        <div className="p-4">
-          <Spinner />
-        </div>
+        error ? null : <div className="p-4"><Spinner /></div>
       ) : quotes.length === 0 ? (
         <p className="p-4 text-sm text-muted">Add gold, silver or stocks in Settings.</p>
       ) : (
-        <ul className="flex flex-1 flex-col divide-y divide-rule-2">
+        <ul className="widget-paired-list flex-1">
           {quotes.map((q) => (
-            <li key={q.symbol} className="grid flex-1 grid-cols-[minmax(0,1fr)_4.5rem_auto] items-center gap-3 px-4 py-2.5">
+            <li key={q.symbol} className="widget-quote-row items-center px-4 py-2.5" data-history={(q.history?.length || 0) > 1 || undefined}>
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{q.name}</div>
-                <div className="truncate font-mono text-[0.6875rem] text-muted">
+                <div className="widget-wrap line-clamp-2 text-sm font-medium" title={q.name}>{q.name}</div>
+                <div className="widget-wrap font-mono text-[0.6875rem] text-muted">
                   {q.error ? q.error : q.local ? `${formatMoney(q.local.price, q.local.currency, 0)} / ${q.local.unit}` : q.symbol}
                 </div>
               </div>
-              <Trace values={q.history || []} height={22} />
-              <div className="text-right">
+              <div className="widget-quote-chart min-w-0"><Trace values={q.history || []} height={22} /></div>
+              <div className="widget-wrap text-right">
                 <div className="font-mono text-sm">{q.price ? formatNumber(q.price) : '—'}</div>
+                {q.price !== 0 && q.currency && <span className="widget-more font-mono text-[0.625rem] text-muted">{q.currency}</span>}
                 <div className={cx('font-mono text-[0.6875rem]', changeClass(q.changePct))}>{q.price ? pct(q.changePct) : ''}</div>
               </div>
             </li>
@@ -281,20 +287,21 @@ function MarketsWidget({ quotes, error }: { quotes?: Quote[]; error?: string }) 
 // --- currency -------------------------------------------------------------------
 
 function CurrencyWidget({ c, error }: { c?: CurrencyData; error?: string }) {
+  const rates = c?.rates || []
   return (
-    <Widget title={c ? `Currency · in ${c.home}` : 'Currency'} aside={<span className="flex items-center gap-2">{c?.date && <span className="etch text-[0.5625rem]">{c.date}</span>}<EditPencil kind="currency" /></span>}>
+    <Widget title={c ? `Currency · in ${c.home}` : 'Currency'} aside={<EditPencil kind="currency" />}>
       <Problem text={error} />
       {!c ? (
-        <div className="p-4">
-          <Spinner />
-        </div>
+        error ? null : <div className="p-4"><Spinner /></div>
+      ) : rates.length === 0 ? (
+        <p className="p-4 text-sm text-muted">No exchange rates are available.</p>
       ) : (
-        <ul className="flex flex-1 flex-col divide-y divide-rule-2">
-          {c.rates.map((r) => (
-            <li key={r.code} className="grid flex-1 grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5">
+        <ul className="widget-paired-list flex-1">
+          {rates.map((r) => (
+            <li key={r.code} className="widget-quote-row items-center px-4 py-2.5" data-history={(r.history?.length || 0) > 1 || undefined}>
               <span className="font-mono text-sm font-semibold">1 {r.code}</span>
-              <Trace values={r.history || []} height={22} />
-              <span className="text-right">
+              <div className="widget-quote-chart min-w-0"><Trace values={r.history || []} height={22} /></div>
+              <span className="widget-wrap text-right">
                 <span className="block font-mono text-sm">{formatMoney(r.rate, c.home)}</span>
                 <span className={cx('block font-mono text-[0.6875rem]', changeClass(r.change))}>{pct(r.change)} · 2 wk</span>
               </span>
@@ -302,7 +309,10 @@ function CurrencyWidget({ c, error }: { c?: CurrencyData; error?: string }) {
           ))}
         </ul>
       )}
-      <p className="mt-auto px-4 py-2 text-[0.6875rem] text-muted">Reference rates from the European Central Bank, updated on weekdays.</p>
+      <p className="mt-auto px-4 py-2 text-[0.6875rem] text-muted">
+        {c?.date && <time dateTime={c.date} className="mr-2 font-mono">{c.date}</time>}
+        Reference rates from the European Central Bank, updated on weekdays.
+      </p>
     </Widget>
   )
 }
@@ -332,7 +342,7 @@ function NewsWidget({ list, error }: { list?: News[]; error?: string }) {
   const [story, setStory] = useState<NewsItem | null>(null)
   const idx = Math.min(i, Math.max(0, (list?.length || 1) - 1))
   const n = list && list.length ? list[idx] : undefined
-  const shown = n ? n.items.slice(0, 20) : []
+  const shown = n?.items?.slice(0, 20) || []
   return (
     <Widget title={n && (list?.length || 0) < 2 ? `News · ${n.label}` : 'News'} className="max-h-[24rem]" aside={<EditPencil kind="news" />}>
       {list && list.length > 1 && (
@@ -345,13 +355,18 @@ function NewsWidget({ list, error }: { list?: News[]; error?: string }) {
       <Problem text={error} />
       {!n ? (
         <div className="p-4">{error ? null : <Spinner />}</div>
+      ) : shown.length === 0 ? (
+        <p className="p-4 text-sm text-muted">No headlines are available.</p>
       ) : (
         <>
-          <ul className="min-h-0 flex-1 divide-y divide-rule-2 overflow-y-auto">
+          <ul className="widget-paired-list min-h-0 flex-1 overflow-y-auto">
             {shown.map((it) => (
               <li key={it.link}>
-                <button className="block w-full px-4 py-2.5 text-left hover:bg-raised" onClick={() => setStory(it)}>
-                  <span className="line-clamp-2 text-sm">{it.title}</span>
+                <button className="block h-full w-full px-4 py-2.5 text-left hover:bg-raised" onClick={() => setStory(it)}>
+                  <span className="widget-wrap line-clamp-2 text-sm" title={it.title}>{it.title}</span>
+                  {it.summary && it.summary !== it.title && (
+                    <span className="widget-more mt-1 text-xs text-ink-2"><span className="widget-wrap line-clamp-2">{it.summary}</span></span>
+                  )}
                   <span className="mt-0.5 block truncate font-mono text-[0.6875rem] text-muted">
                     {[it.source, it.published && !it.published.startsWith('0001') ? timeAgo(it.published) : ''].filter(Boolean).join(' · ')}
                   </span>
@@ -381,78 +396,124 @@ function NewsWidget({ list, error }: { list?: News[]; error?: string }) {
   )
 }
 
-/** The widget row on the Overview. */
-/** The Overview widgets. The admin can rearrange and hide them with Edit layout. */
+const widgetWidths = [['', 'Auto'], ['compact', 'Compact'], ['half', 'Half'], ['full', 'Full']] as const
+
+/** The Overview widgets and the admin's shared layout editor. */
 export function WidgetBoard({ data }: { data: WidgetData | null }) {
   const role = useContext(Ctx)?.role
   const admin = role === 'admin'
   const manager = atLeast(role, 'manager')
-  const [editing, setEditing] = useState(false)
-  const [order, setOrder] = useState<WKey[]>(W_DEFAULT)
-  const [hiddenKeys, setHiddenKeys] = useState<WKey[]>([])
-  const [drag, setDrag] = useState<WKey | null>(null)
-  const [over, setOver] = useState<WKey | null>(null)
+  const [draft, setDraft] = useState<WidgetLayout | null>(null)
+  const [committed, setCommitted] = useState<{ settings: WidgetData['settings']; layout: WidgetLayout } | null>(null)
   const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState('')
+  const [error, setError] = useState('')
+  const [announcement, setAnnouncement] = useState('')
+  const editButton = useRef<HTMLButtonElement>(null)
+  const saveButton = useRef<HTMLButtonElement>(null)
+  const motion = useWidgetLayoutMotion(move)
+  const editing = admin && draft !== null
+
+  useEffect(() => {
+    if (editing) saveButton.current?.focus({ preventScroll: true })
+  }, [editing])
+
+  function move(key: WKey, target: WKey, after: boolean) {
+    if (!draft || saving || target === key) return
+    const order = draft.order.filter((item) => item !== key)
+    const to = order.indexOf(target) + (after ? 1 : 0)
+    if (to === draft.order.indexOf(key)) return
+    order.splice(to, 0, key)
+    motion.measure()
+    setDraft({ ...draft, order })
+    setAnnouncement(`${W_NAMES[key]} moved to position ${to + 1} of ${order.length}.`)
+  }
+
+  function step(key: WKey, delta: number) {
+    if (!draft || saving) return
+    const target = draft.order[draft.order.indexOf(key) + delta]
+    if (!target) return
+    const focused = document.activeElement
+    move(key, target, delta > 0)
+    requestAnimationFrame(() => {
+      if (focused instanceof HTMLElement && focused.isConnected && document.activeElement === document.body) {
+        focused.focus({ preventScroll: true })
+      }
+    })
+  }
+
   if (!data) {
-    // Hold the place of the cards that are coming, so nothing below jumps down when they arrive.
-    // Until Haven has seen the real number, guess from the role: managers and the admin get all eight.
-    let n = manager ? W_DEFAULT.length : 1
+    let count = manager ? W_DEFAULT.length : 1
     try {
-      n = Math.max(1, Math.min(8, parseInt(localStorage.getItem('haven-widget-count') || '', 10) || n))
+      count = Math.max(1, Math.min(W_DEFAULT.length, parseInt(localStorage.getItem('haven-widget-count') || '', 10) || count))
     } catch {
-      /* storage blocked: assume one row */
+      /* Storage blocked. Use the role's default. */
     }
     return (
       <div className="board" aria-hidden>
-        {Array.from({ length: n }, (_, i) => (
-          <div key={i} className="plate h-[20rem] bg-well" />
-        ))}
+        {Array.from({ length: count }, (_, i) => <div key={i} className="plate h-[20rem] bg-well" />)}
       </div>
     )
   }
 
-  const savedOrder = ((data.settings?.order || W_DEFAULT) as WKey[]).filter((k) => W_DEFAULT.includes(k))
-  const savedHidden = (data.settings?.hidden || []) as WKey[]
-  const fullOrder = [...savedOrder]
-  for (const k of W_DEFAULT) {
-    if (!fullOrder.includes(k)) {
-      if (k === 'aqi') {
-        const wIdx = fullOrder.indexOf('weather')
-        if (wIdx !== -1) fullOrder.splice(wIdx + 1, 0, 'aqi')
-        else fullOrder.push('aqi')
-      } else {
-        fullOrder.push(k)
-      }
-    }
+  const settings = data.settings
+  const saved = committed?.settings === settings ? committed.layout : {
+    order: widgetOrder(settings.order),
+    hidden: (settings.hidden || []) as WKey[],
+    sizes: settings.sizes || {},
   }
-  const begin = () => {
-    setOrder(fullOrder)
-    setHiddenKeys(savedHidden)
-    setErr('')
-    setEditing(true)
+  const layout = editing ? draft : saved
+
+  function closeEditor() {
+    motion.cancel()
+    setDraft(null)
+    setAnnouncement('')
+    requestAnimationFrame(() => editButton.current?.focus({ preventScroll: true }))
   }
-  const save = async () => {
+
+  async function save() {
+    if (!draft || saving) return
     setSaving(true)
-    setErr('')
+    setError('')
     try {
       const ui = await api.ui()
-      await api.saveUI({ ...ui, widgets: { ...ui.widgets, order, hidden: hiddenKeys } })
+      const next = await api.saveUI({ ...ui, widgets: { ...ui.widgets, order: draft.order, hidden: draft.hidden, sizes: draft.sizes } })
+      setCommitted({ settings, layout: { ...draft, sizes: next.widgets.sizes || {} } })
+      closeEditor()
       announceUIChange()
-      setEditing(false)
-    } catch (e: any) {
-      setErr(e.message)
+    } catch (e) {
+      setError((e as Error).message)
     } finally {
       setSaving(false)
     }
   }
-  const move = (k: WKey, to: number) =>
-    setOrder((o) => {
-      const rest = o.filter((x) => x !== k)
-      rest.splice(Math.max(0, Math.min(rest.length, to)), 0, k)
-      return rest
-    })
-  const toggleHidden = (k: WKey) => setHiddenKeys((h) => (h.includes(k) ? h.filter((x) => x !== k) : [...h, k]))
+
+  function begin() {
+    setError('')
+    setDraft(saved)
+  }
+
+  function resize(key: WKey, width: WidgetWidth | '') {
+    if (!draft || (draft.sizes[key]?.width || '') === width) return
+    const sizes = { ...draft.sizes }
+    if (width) sizes[key] = { width }
+    else delete sizes[key]
+    motion.measure()
+    setDraft({ ...draft, sizes })
+  }
+
+  const isOff = (key: WKey) => {
+    if (key === 'clock' || key === 'notes' || key === 'links') return false
+    return !!data[key]?.off && !settings.hidden?.includes(key)
+  }
+  const emptyForViewer = (key: WKey) => (key === 'notes' && !settings.notes?.trim()) || (key === 'links' && !settings.links?.length) || (key === 'status' && !settings.checks?.length)
+  const visible = layout.order.filter((key) => !layout.hidden.includes(key) && !isOff(key) && !(PRIVATE_KEYS.includes(key) && !manager) && !(!admin && emptyForViewer(key)))
+  if (!editing) {
+    try {
+      localStorage.setItem('haven-widget-count', String(visible.length))
+    } catch {
+      /* Storage blocked. The layout is still saved on the server. */
+    }
+  }
 
   const body = (k: WKey) => {
     switch (k) {
@@ -477,117 +538,116 @@ export function WidgetBoard({ data }: { data: WidgetData | null }) {
     }
   }
 
-  const keys = editing ? order : fullOrder
-  // A widget is off when it was hidden, or (for the older four) turned off in Settings.
-  const isOff = (k: WKey) => (k === 'weather' || k === 'aqi' || k === 'markets' || k === 'currency' || k === 'news' ? !!data[k]?.off || savedHidden.includes(k) : k === 'status' ? !!data.status?.off || savedHidden.includes(k) : savedHidden.includes(k))
-  // Someone who can't edit has nothing to see in an empty note, link list or check list.
-  const emptyForViewer = (k: WKey) => (k === 'notes' && !(data.settings.notes || '').trim()) || (k === 'links' && !(data.settings.links || []).length) || (k === 'status' && !(data.settings.checks || []).length)
-  const viewerHides = (k: WKey) => (PRIVATE_KEYS.includes(k) && !manager) || (!admin && emptyForViewer(k))
-  const shown = (k: WKey) => (editing ? !hiddenKeys.includes(k) : !isOff(k) && !viewerHides(k))
-  const visible = keys.filter(shown)
-  if (!editing) {
-    try {
-      localStorage.setItem('haven-widget-count', String(visible.length))
-    } catch {
-      /* storage blocked */
-    }
-  }
-  if (!editing && visible.length === 0) {
-    return admin ? (
-      <div className="flex justify-end">
-        <button className="key key-sm" onClick={begin}>
-          <LayoutGrid size={13} /> Edit layout
-        </button>
-      </div>
-    ) : null
-  }
 
   return (
-    <div className="space-y-3">
-      {admin && (
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {editing ? (
-            <>
-              <span className="mr-auto text-xs text-ink-2">Click and hold a widget, then drag it where you want. Everyone sees this layout.</span>
-              {err && <span className="text-xs text-bad">{err}</span>}
-              <button
-                className="key key-sm"
-                onClick={() => {
-                  setOrder(W_DEFAULT)
-                  setHiddenKeys([])
-                }}
-              >
-                <RotateCcw size={13} /> Reset
-              </button>
-              <button className="key key-sm" onClick={() => setEditing(false)} disabled={saving}>
-                Cancel
-              </button>
-              <button className="key key-sm key-primary" onClick={save} disabled={saving}>
-                <Check size={13} /> Done
-              </button>
-            </>
-          ) : (
-            <button className="key key-sm" onClick={begin}>
-              <LayoutGrid size={13} /> Edit layout
-            </button>
-          )}
+    <section
+      aria-label="Overview widgets"
+      className="widget-layout space-y-3"
+      onKeyDown={(event) => {
+        if (!editing || event.key !== 'Escape') return
+        if (motion.dragging) motion.cancel()
+        else if (!saving) closeEditor()
+      }}
+    >
+      {admin && (editing ? (
+        <div className="widget-layout-bar plate flex flex-wrap items-center gap-3 px-3 py-2">
+          <div className="mr-auto min-w-0">
+            <h2 className="text-sm font-semibold">Edit widget layout</h2>
+            <p className="mt-0.5 text-xs text-muted">
+              Drag a grip to move a widget. This layout is shared.
+              <span className="widget-width-note"> Width choices apply on wider screens.</span>
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="key key-sm key-flat" disabled={saving} onClick={() => {
+              motion.cancel()
+              motion.measure()
+              setDraft({ order: W_DEFAULT, hidden: [], sizes: {} })
+              setAnnouncement('Default layout restored in the preview.')
+            }}><RotateCcw size={13} /> Reset</button>
+            <button className="key key-sm" disabled={saving} onClick={closeEditor}>Cancel</button>
+            <button ref={saveButton} className="key key-sm key-primary" disabled={saving} onClick={save}><Check size={13} /> {saving ? 'Saving…' : 'Save layout'}</button>
+          </div>
+          {error && <p role="alert" className="basis-full text-xs text-bad">{error}</p>}
+          <span className="sr-only" role="status">{announcement}</span>
         </div>
-      )}
-      <div className="board">
-        {(editing ? keys : visible).map((k, i) => {
-          const hide = editing && hiddenKeys.includes(k)
-          if (!editing) return <div key={k} className="flex min-w-0">{body(k)}</div>
-          return (
-            <div
-              key={k}
-              draggable
-              onDragStart={(e) => {
-                setDrag(k)
-                e.dataTransfer.effectAllowed = 'move'
-                e.dataTransfer.setData('text/plain', k)
-              }}
-              onDragOver={(e) => {
-                e.preventDefault()
-                if (over !== k) setOver(k)
-              }}
-              onDragLeave={() => setOver((o) => (o === k ? null : o))}
-              onDrop={(e) => {
-                e.preventDefault()
-                if (drag && drag !== k) move(drag, keys.indexOf(k))
-                setDrag(null)
-                setOver(null)
-              }}
-              onDragEnd={() => {
-                setDrag(null)
-                setOver(null)
-              }}
-              className={cx('relative flex cursor-grab flex-col rounded-[3px] ring-1 ring-rule transition-shadow active:cursor-grabbing', over === k && drag !== k && 'ring-2 ring-[var(--accent)]', drag === k && 'opacity-50')}
-              aria-label={`${W_NAMES[k]} widget, position ${i + 1} of ${keys.length}`}
-            >
-              <div className="absolute inset-x-0 top-0 z-20 flex items-center gap-1 rounded-t-[3px] border-b border-rule bg-paper px-2 py-1.5">
-                <span className="text-muted" title="Click and hold to move" aria-hidden>
-                  <GripVertical size={16} />
-                </span>
-                <span className="etch mr-auto text-[0.625rem]">{W_NAMES[k]}</span>
-                <button className="key key-flat key-sm key-icon" onClick={() => toggleHidden(k)} aria-label={hide ? `Show ${W_NAMES[k]}` : `Hide ${W_NAMES[k]}`} title={hide ? 'Show' : 'Hide'}>
-                  {hide ? <Eye size={14} /> : <EyeOff size={14} />}
-                </button>
-              </div>
-              <div className="pointer-events-none relative flex flex-1 select-none pt-10">
-                {/* A hidden widget keeps its place: its content stays (unseen) so the row doesn't change height. */}
-                {!isOff(k) && <div className={cx('flex w-full flex-1', hide && 'invisible')}>{body(k)}</div>}
-                {(hide || isOff(k)) && (
-                  <div className={cx('flex min-h-[10rem] w-full flex-col items-center justify-center gap-2 rounded-[3px] border border-dashed border-rule-hi bg-paper p-6 text-center', isOff(k) ? 'flex-1' : 'absolute inset-x-0 bottom-0 top-10')}>
-                    <EyeOff size={22} className="text-muted" aria-hidden />
-                    <span className="text-sm font-semibold">{W_NAMES[k]} is hidden</span>
-                    <span className="text-xs text-muted">{hide ? 'It won’t show on the Overview. Click the eye above to bring it back.' : 'It is switched off in Settings → Widgets.'}</span>
+      ) : (
+        <div className="flex justify-end">
+          <button ref={editButton} className="key key-sm" onClick={begin}><LayoutGrid size={13} /> Edit layout</button>
+        </div>
+      ))}
+      {(editing || visible.length > 0) && (
+        <div ref={motion.board} className="board" data-reordering={motion.dragging ? true : undefined}>
+          {(editing ? layout.order : visible).map((key) => {
+            const hidden = layout.hidden.includes(key)
+            const name = W_NAMES[key]
+            const size = layout.sizes[key]
+            return (
+              <div
+                key={key}
+                className={cx('widget-slot', editing && 'widget-slot-editing')}
+                data-widget-key={key}
+                data-width={size?.width}
+                data-dragging={motion.dragging === key || undefined}
+                data-drop={motion.drop?.key === key ? motion.drop.side : undefined}
+              >
+                {editing && (
+                  <div className="widget-tools" role="group" aria-label={`${name} layout`}>
+                    <button
+                      className="key key-flat key-sm key-icon widget-grip"
+                      aria-label={`Drag ${name} or use arrow keys to move it`}
+                      title={`Drag ${name}`}
+                      disabled={saving}
+                      onPointerDown={(event) => motion.start(event, key)}
+                      onPointerMove={motion.track}
+                      onPointerUp={motion.finish}
+                      onPointerCancel={motion.cancel}
+                      onLostPointerCapture={motion.cancel}
+                      onKeyDown={(event) => {
+                        if (!['ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight'].includes(event.key)) return
+                        event.preventDefault()
+                        step(key, event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1)
+                      }}
+                    ><GripVertical size={15} /></button>
+                    <div className="widget-widths well" role="radiogroup" aria-label={`${name} width`}>
+                      {widgetWidths.map(([width, label]) => (
+                        <label key={width}>
+                          <input
+                            className="sr-only"
+                            type="radio"
+                            name={`widget-width-${key}`}
+                            value={width}
+                            checked={(size?.width || '') === width}
+                            disabled={saving}
+                            onChange={() => resize(key, width)}
+                          />
+                          <span>{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <button
+                      className="key key-flat key-sm key-icon widget-visibility"
+                      aria-label={`${hidden ? 'Show' : 'Hide'} ${name}`}
+                      title={hidden ? 'Show widget' : 'Hide widget'}
+                      disabled={saving}
+                      onClick={() => setDraft({ ...draft, hidden: hidden ? draft.hidden.filter((item) => item !== key) : [...draft.hidden, key] })}
+                    >{hidden ? <Eye size={15} /> : <EyeOff size={15} />}</button>
                   </div>
                 )}
+                <div className="widget-preview">
+                  <div className={cx('widget-content', editing && hidden && 'invisible')} inert={editing || undefined}>{body(key)}</div>
+                  {editing && (hidden || isOff(key)) && (
+                    <div className="widget-placeholder">
+                      <EyeOff size={18} aria-hidden />
+                      <span>{name} {hidden ? 'is hidden' : 'is off in Settings'}</span>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
+            )
+          })}
+        </div>
+      )}
+    </section>
   )
 }

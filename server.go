@@ -69,6 +69,7 @@ func (s *Server) Routes() http.Handler {
 	// Signed in
 	auth := func(h http.HandlerFunc) http.Handler { return s.requireAuth(h) }
 	mux.Handle("POST /api/auth/password", auth(s.changePassword))
+	mux.Handle("PUT /api/auth/profile", auth(s.updateProfile))
 	mux.Handle("POST /api/auth/tv/approve", auth(s.tvApprove))
 	mux.Handle("GET /api/system", auth(s.system))
 	mux.Handle("GET /api/catalog", s.need(RoleManager, s.listCatalog))
@@ -85,6 +86,10 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/apps/{id}/logs", s.need(RoleManager, s.appLogs))
 	mux.Handle("POST /api/apps/{id}/{action}", s.need(RoleMember, s.appAction))
 	mux.Handle("DELETE /api/apps/{id}", s.need(RoleManager, s.uninstall))
+	mux.Handle("GET /api/apps/{id}/backup", s.need(RoleAdmin, s.getBackupPlan))
+	mux.Handle("POST /api/apps/{id}/backup", s.need(RoleAdmin, s.createBackup))
+	mux.Handle("POST /api/backups/inspect", s.need(RoleAdmin, s.inspectBackup))
+	mux.Handle("POST /api/backups/restore", s.need(RoleAdmin, s.restoreBackup))
 	mux.Handle("POST /api/containers/{id}/{action}", s.need(RoleAdmin, s.containerAction))
 	mux.Handle("GET /api/containers/{id}/logs", s.need(RoleAdmin, s.containerLogs))
 	mux.Handle("GET /api/jobs", s.need(RoleManager, s.listJobs))
@@ -129,6 +134,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/files/move", s.need(RoleManager, s.filesMove))
 	mux.Handle("POST /api/files/delete", s.need(RoleManager, s.filesDelete))
 	mux.Handle("POST /api/files/upload", s.need(RoleManager, s.filesUpload))
+	mux.Handle("GET /api/files/upload", s.need(RoleManager, s.filesUploadChunk))
+	mux.Handle("PUT /api/files/upload", s.need(RoleManager, s.filesUploadChunk))
 	mux.Handle("POST /api/files/access", s.need(RoleAdmin, s.filesAccess))
 	mux.Handle("GET /api/cleanup", s.need(RoleAdmin, s.cleanupScan))
 	mux.Handle("POST /api/cleanup/run", s.need(RoleAdmin, s.cleanupRun))
@@ -305,6 +312,7 @@ func (s *Server) authStatus(w http.ResponseWriter, r *http.Request) {
 			if p, found := s.store.Person(u); found && !p.Disabled {
 				res["authenticated"] = true
 				res["user"] = p.Username
+				res["displayName"] = p.DisplayName
 				res["role"] = p.Role
 				res["apps"] = p.Apps
 			}
@@ -427,6 +435,26 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 	c, _ := r.Cookie(sessionCookie)
 	s.sessions.DeleteUserExcept(user, c.Value) // sign out other devices
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) updateProfile(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		DisplayName *string `json:"displayName"`
+	}
+	if err := readJSON(r, &req); err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.DisplayName == nil {
+		jsonError(w, http.StatusBadRequest, "provide a display name or leave it blank to clear it")
+		return
+	}
+	name, err := s.store.SetDisplayName(currentUser(r), *req.DisplayName)
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"displayName": name})
 }
 
 // --- TV pairing -----------------------------------------------------------
@@ -920,7 +948,17 @@ func (s *Server) containerLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listJobs(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.jobs.List())
+	jobs := s.jobs.List()
+	if person(r).Role != RoleAdmin {
+		visible := jobs[:0]
+		for _, job := range jobs {
+			if !backupJob(job.Action) {
+				visible = append(visible, job)
+			}
+		}
+		jobs = visible
+	}
+	writeJSON(w, http.StatusOK, jobs)
 }
 
 func (s *Server) getJob(w http.ResponseWriter, r *http.Request) {
@@ -929,7 +967,8 @@ func (s *Server) getJob(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusNotFound, "job not found")
 		return
 	}
-	if p := person(r); rankOf(p.Role) < rankOf(RoleManager) && !allowedApp(p, j.App) {
+	p := person(r)
+	if (p.Role != RoleAdmin && backupJob(j.Action)) || (rankOf(p.Role) < rankOf(RoleManager) && !allowedApp(p, j.App)) {
 		jsonError(w, http.StatusForbidden, "your account isn't allowed to do this")
 		return
 	}
@@ -1250,14 +1289,19 @@ func (s *Server) checkUpdates(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) applyUpdates(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		IDs   []string `json:"ids"`
-		Prune bool     `json:"prune"`
+		IDs               []string `json:"ids"`
+		Prune             bool     `json:"prune"`
+		BackupDestination *string  `json:"backupDestination"`
 	}
 	if err := readJSON(r, &req); err != nil {
 		jsonError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	job, err := s.apps.UpdateMany(req.IDs, req.Prune)
+	if req.BackupDestination != nil && person(r).Role != RoleAdmin {
+		jsonError(w, http.StatusForbidden, "only the admin can back up apps before updating")
+		return
+	}
+	job, err := s.apps.UpdateMany(req.IDs, req.Prune, req.BackupDestination)
 	if err != nil {
 		jsonError(w, http.StatusBadRequest, err.Error())
 		return
@@ -1272,6 +1316,20 @@ func (s *Server) getNotifications(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) readNotifications(w http.ResponseWriter, r *http.Request) {
 	var req struct {
+		IDs  []uint64 `json:"ids"`
+		All  bool     `json:"all"`
+		Read *bool    `json:"read"`
+	}
+	if err := readJSON(r, &req); err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.notes.SetRead(req.IDs, req.All, req.Read == nil || *req.Read)
+	s.getNotifications(w, r)
+}
+
+func (s *Server) clearNotifications(w http.ResponseWriter, r *http.Request) {
+	var req struct {
 		IDs []uint64 `json:"ids"`
 		All bool     `json:"all"`
 	}
@@ -1279,15 +1337,10 @@ func (s *Server) readNotifications(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	s.notes.MarkRead(req.IDs, req.All)
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-}
-
-func (s *Server) clearNotifications(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		All bool `json:"all"`
+	if req.IDs != nil {
+		s.notes.Dismiss(req.IDs)
+	} else {
+		s.notes.Clear(req.All)
 	}
-	_ = readJSON(r, &req)
-	s.notes.Clear(req.All)
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	s.getNotifications(w, r)
 }

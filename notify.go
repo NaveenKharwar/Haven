@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -28,9 +29,10 @@ type Notification struct {
 }
 
 type notifyFile struct {
-	Seq     uint64         `json:"seq"`
-	Items   []Notification `json:"items"`
-	Version string         `json:"version"` // Haven version that last ran
+	Seq       uint64         `json:"seq"`
+	Items     []Notification `json:"items"`
+	Dismissed []string       `json:"dismissed,omitempty"`
+	Version   string         `json:"version"` // Haven version that last ran
 }
 
 const maxNotifications = 120
@@ -45,6 +47,14 @@ func NewNotifier(path string) *Notifier {
 	n := &Notifier{path: path}
 	if b, err := os.ReadFile(path); err == nil {
 		_ = json.Unmarshal(b, &n.f)
+		for i := range n.f.Items {
+			it := &n.f.Items[i]
+			if it.Job == "" {
+				if job, ok := strings.CutPrefix(it.Key, "job:"); ok {
+					it.Job = job
+				}
+			}
+		}
 	}
 	return n
 }
@@ -67,6 +77,9 @@ func (n *Notifier) AddJob(level, title, body, key, route, job string) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if key != "" {
+		if slices.Contains(n.f.Dismissed, key) {
+			return
+		}
 		for _, it := range n.f.Items {
 			if it.Key == key {
 				return
@@ -97,6 +110,10 @@ func (n *Notifier) List() ([]Notification, int) {
 }
 
 func (n *Notifier) MarkRead(ids []uint64, all bool) {
+	n.SetRead(ids, all, true)
+}
+
+func (n *Notifier) SetRead(ids []uint64, all, read bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	want := map[uint64]bool{}
@@ -105,7 +122,7 @@ func (n *Notifier) MarkRead(ids []uint64, all bool) {
 	}
 	for i := range n.f.Items {
 		if all || want[n.f.Items[i].ID] {
-			n.f.Items[i].Read = true
+			n.f.Items[i].Read = read
 		}
 	}
 	n.saveLocked()
@@ -114,14 +131,32 @@ func (n *Notifier) MarkRead(ids []uint64, all bool) {
 // Clear removes read notifications, or everything when all is true. Keys of
 // removed ones are forgotten, so a condition that comes back is reported again.
 func (n *Notifier) Clear(all bool) {
+	n.remove(func(it Notification) bool { return all || it.Read }, false)
+}
+
+func (n *Notifier) Dismiss(ids []uint64) {
+	want := make(map[uint64]bool, len(ids))
+	for _, id := range ids {
+		want[id] = true
+	}
+	n.remove(func(it Notification) bool { return want[it.ID] }, true)
+}
+
+func (n *Notifier) remove(match func(Notification) bool, remember bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	keep := n.f.Items[:0]
 	for _, it := range n.f.Items {
-		if !all && !it.Read {
+		if !match(it) {
 			keep = append(keep, it)
+		} else if remember && it.Key != "" {
+			n.f.Dismissed = append(n.f.Dismissed, it.Key)
 		}
 	}
+	if len(n.f.Dismissed) > maxNotifications {
+		n.f.Dismissed = slices.Clone(n.f.Dismissed[len(n.f.Dismissed)-maxNotifications:])
+	}
+	clear(n.f.Items[len(keep):])
 	n.f.Items = keep
 	n.saveLocked()
 }
@@ -260,7 +295,7 @@ func (w *Watcher) watchServer(ctx context.Context) {
 func (n *Notifier) jobDone(j *Job) {
 	v := j.View(false)
 	name := v.App
-	what := map[string]string{"install": "Install", "update": "Update", "update-all": "Updates", "uninstall": "Uninstall", "start": "Start", "stop": "Stop",
+	what := map[string]string{"install": "Install", "update": "Update", "update-all": "Updates", "update-with-backup": "Update with backup", "uninstall": "Uninstall", "start": "Start", "stop": "Stop",
 		"restart": "Restart", "reconfigure": "Settings change", "wifi-connect": "Wi-Fi", "network-ip": "IP address change", "network-setup": "Network setup",
 		"remote-access": "Remote access setup", "local-name": "Local address setup", "cleanup": "Cleanup", "haven-update": "Haven update"}[v.Action]
 	if what == "" {
@@ -272,21 +307,21 @@ func (n *Notifier) jobDone(j *Job) {
 		if name != "" && name != "server" && name != "updates" {
 			title = fmt.Sprintf("%s of %s failed", what, name)
 		}
-		n.Add("bad", title, v.Error, "job:"+v.ID, routeFor(v.Action))
+		n.AddJob("bad", title, v.Error, "job:"+v.ID, routeFor(v.Action), v.ID)
 	case "success":
-		if v.Action == "install" || v.Action == "update" || v.Action == "update-all" {
+		if v.Action == "install" || v.Action == "update" || v.Action == "update-all" || v.Action == "update-with-backup" {
 			title := fmt.Sprintf("%s finished", what)
 			if name != "" && name != "server" && name != "updates" {
 				title = fmt.Sprintf("%s of %s finished", what, name)
 			}
-			n.Add("ok", title, "", "job:"+v.ID, routeFor(v.Action))
+			n.AddJob("ok", title, "", "job:"+v.ID, routeFor(v.Action), v.ID)
 		}
 	}
 }
 
 func routeFor(action string) string {
 	switch action {
-	case "update", "update-all":
+	case "update", "update-all", "update-with-backup", "haven-update":
 		return "updates"
 	case "install", "uninstall", "start", "stop", "restart", "reconfigure":
 		return "apps"

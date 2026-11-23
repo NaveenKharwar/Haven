@@ -1104,6 +1104,64 @@ func call(t *testing.T, c *http.Client, method, url, body string) int {
 	return resp.StatusCode
 }
 
+func TestAccountDisplayName(t *testing.T) {
+	hs, clients, store := roleServer(t)
+	profileURL := hs.URL + "/api/auth/profile"
+	status := func(c *http.Client) (username, displayName string) {
+		t.Helper()
+		resp, err := c.Get(hs.URL + "/api/auth/status")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var auth struct {
+			Authenticated bool
+			User          string
+			DisplayName   string
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&auth); err != nil || !auth.Authenticated {
+			t.Fatalf("could not read authenticated account: %+v (%v)", auth, err)
+		}
+		return auth.User, auth.DisplayName
+	}
+	if username, name := status(clients["gus"]); username != "gus" || name != "" {
+		t.Fatalf("older account fallback data = %q, %q", username, name)
+	}
+	if got := call(t, http.DefaultClient, "PUT", profileURL, `{"displayName":"Guest"}`); got != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated name update returned %d", got)
+	}
+	if got := call(t, clients["gus"], "PUT", profileURL, `{"displayName":"  गस Kumar  ","username":"boss"}`); got != http.StatusOK {
+		t.Fatalf("guest could not update their display name: %d", got)
+	}
+	if username, name := status(clients["gus"]); username != "gus" || name != "गस Kumar" {
+		t.Fatalf("renamed account status = %q, %q", username, name)
+	}
+	if _, name := status(clients["boss"]); name != "" {
+		t.Fatalf("another account's name changed to %q", name)
+	}
+	reopened, err := LoadStore(store.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p, ok := reopened.Person("gus"); !ok || p.DisplayName != "गस Kumar" {
+		t.Fatalf("name was not persisted: %q", p.DisplayName)
+	}
+	for _, body := range []string{`{}`, `{"displayName":"two\nlines"}`, fmt.Sprintf(`{"displayName":%q}`, strings.Repeat("🙂", 65))} {
+		if got := call(t, clients["gus"], "PUT", profileURL, body); got != http.StatusBadRequest {
+			t.Errorf("invalid name payload returned %d", got)
+		}
+	}
+	if _, name := status(clients["gus"]); name != "गस Kumar" {
+		t.Fatalf("invalid update changed the saved name: %q", name)
+	}
+	if got := call(t, clients["gus"], "PUT", profileURL, `{"displayName":" "}`); got != http.StatusOK {
+		t.Fatalf("clearing the display name returned %d", got)
+	}
+	if username, name := status(clients["gus"]); username != "gus" || name != "" {
+		t.Fatalf("cleared account fallback data = %q, %q", username, name)
+	}
+}
+
 func TestRolesAreEnforced(t *testing.T) {
 	hs, c, st := roleServer(t)
 	type tc struct {
@@ -1412,6 +1470,24 @@ func TestWidgetOrderIsCleaned(t *testing.T) {
 	empty.normalize()
 	if got := strings.Join(empty.Order, ","); got != "weather,aqi,markets,currency,news,clock,notes,links,status" {
 		t.Errorf("default order = %s", got)
+	}
+}
+
+func TestWidgetSizesNormalize(t *testing.T) {
+	ui := UISettings{Widgets: defaultWidgetSettings()}
+	if err := cleanUI(&ui); err != nil || len(ui.Widgets.Sizes) != 0 {
+		t.Fatalf("existing layouts should keep automatic sizing: %v (%v)", ui.Widgets.Sizes, err)
+	}
+	legacy := []byte(`{"markets":{"width":"half","height":"short"},"notes":{"height":"tall"},"weather":{"width":"auto"},"clock":{"width":"invalid"},"unknown":{"width":"full"}}`)
+	if err := json.Unmarshal(legacy, &ui.Widgets.Sizes); err != nil {
+		t.Fatal(err)
+	}
+	if err := cleanUI(&ui); err != nil {
+		t.Fatal(err)
+	}
+	sizes := ui.Widgets.Sizes
+	if len(sizes) != 1 || sizes["markets"].Width != "half" {
+		t.Fatalf("unexpected normalized sizes: %v", sizes)
 	}
 }
 
@@ -1792,6 +1868,119 @@ func TestAppVersionValidationAndCustomVersion(t *testing.T) {
 		if err := validateAppVersion(v); err == nil {
 			t.Errorf("validateAppVersion(%q) should have failed", v)
 		}
+	}
+}
+
+func TestReconfigureReportsRollbackFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		wantErr string
+	}{
+		{"restart fails", "rollback could not start the previous version"},
+		{"health check fails", "previous version did not become healthy"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			docker := `#!/bin/sh
+set -eu
+case "$1" in
+  ps)
+    if [ "$2" = "-a" ] && [ "$3" = "--filter" ]; then
+      echo old-container
+    else
+      echo health-check >> "$DOCKER_TRACE"
+      echo '{"Names":"ittools","State":"exited","Status":"Exited (1)","Labels":"com.docker.compose.project=haven-ittools"}'
+    fi
+    ;;
+  inspect) echo "example/ittools:1.0 sha256:previous" ;;
+  tag)
+    [ "$2 $3" = "sha256:previous example/ittools:1.0" ]
+    echo retag >> "$DOCKER_TRACE"
+    ;;
+  compose)
+    compose_file="$9"
+    shift 9
+    env_file="$2"
+    shift 2
+    case "$1" in
+      pull) echo pull >> "$DOCKER_TRACE" ;;
+      logs) ;;
+      up)
+        if grep -q 'APP_VERSION=.*2.0' "$env_file"; then
+          echo start-new >> "$DOCKER_TRACE"
+          exit 1
+        fi
+        grep -q 'image: example/ittools:1.0$' "$compose_file"
+        grep -q '^APP_VERSION=1.0$' "$env_file"
+        [ "$4 $5" = "--pull never" ]
+        echo start-old >> "$DOCKER_TRACE"
+        [ "$DOCKER_FAILURE" != "restart fails" ]
+        ;;
+      *) exit 1 ;;
+    esac
+    ;;
+  *) exit 1 ;;
+esac
+`
+			if err := os.WriteFile(filepath.Join(dir, "docker"), []byte(docker), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			tracePath := filepath.Join(dir, "docker.log")
+			t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+			t.Setenv("DOCKER_TRACE", tracePath)
+			t.Setenv("DOCKER_FAILURE", tc.name)
+
+			cat, err := LoadCatalog()
+			if err != nil {
+				t.Fatal(err)
+			}
+			m := NewManager(dir, &Docker{}, cat, NewJobs())
+			appDir := m.appDir("ittools")
+			if err := os.MkdirAll(appDir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			previousFiles := map[string]string{
+				"compose.yml": "services:\n  app:\n    image: example/ittools:1.0\n",
+				".env":        "APP_VERSION=1.0\nVERSION=1.0\n",
+			}
+			for name, content := range previousFiles {
+				if err := os.WriteFile(filepath.Join(appDir, name), []byte(content), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := m.writeMeta(&AppMeta{ID: "ittools", CatalogID: "ittools", Version: "1.0"}); err != nil {
+				t.Fatal(err)
+			}
+
+			job, err := m.Reconfigure(t.Context(), "ittools", nil, "2.0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			deadline := time.Now().Add(5 * time.Second)
+			view := job.View(true)
+			for view.Status == "running" && time.Now().Before(deadline) {
+				time.Sleep(10 * time.Millisecond)
+				view = job.View(true)
+			}
+			if view.Status != "failed" || !strings.Contains(view.Error, tc.wantErr) {
+				t.Fatalf("expected failed job reporting %q, got %s (%s)\n%s", tc.wantErr, view.Status, view.Error, strings.Join(view.Log, "\n"))
+			}
+			wantTrace := "pull\nstart-new\nretag\nstart-old\n"
+			if tc.name == "health check fails" {
+				wantTrace += "health-check\n"
+			}
+			if trace, err := os.ReadFile(tracePath); err != nil || string(trace) != wantTrace {
+				t.Fatalf("Docker calls = %q, want %q (read error: %v)", trace, wantTrace, err)
+			}
+			for name, want := range previousFiles {
+				if content, err := os.ReadFile(filepath.Join(appDir, name)); err != nil || string(content) != want {
+					t.Errorf("restored %s = %q, want %q (read error: %v)", name, content, want, err)
+				}
+			}
+			if meta, err := m.readMeta("ittools"); err != nil || meta.Version != "1.0" {
+				t.Errorf("expected previous version in metadata, got %+v (%v)", meta, err)
+			}
+		})
 	}
 }
 

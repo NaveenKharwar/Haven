@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ArrowUpRight } from 'lucide-react'
 import { type CheckResult } from './api'
 import { Led, Spinner, cx } from './components'
 import { EditCta, EditPencil, offsetOf, zoneLabel } from './widgeteditors'
@@ -34,30 +35,37 @@ export function ClockWidget({ zones, hour12, admin }: { zones: string[]; hour12:
   const localParts = parts()
   return (
     <Widget title="Clock" aside={<EditPencil kind="clock" />}>
-      <div className="px-4 pb-3 pt-4">
-        <div className="readout text-5xl tabular-nums" aria-label="Local time">
-          {pick(localParts, 'hour')}:{pick(localParts, 'minute')}
-          <span className="text-2xl text-muted">:{pick(localParts, 'second')}</span>
-          {hour12 && <span className="ml-2 text-2xl text-muted">{pick(localParts, 'dayPeriod').toUpperCase()}</span>}
+      <div className={cx('flex-1', zones.length > 0 ? 'widget-clock' : 'flex flex-col')}>
+        <div className="min-w-0 px-4 pb-3 pt-4">
+          <div className="widget-clock-time readout flex flex-wrap items-baseline gap-x-2 tabular-nums" aria-label="Local time">
+            <span>
+              {pick(localParts, 'hour')}:{pick(localParts, 'minute')}
+              <span className="text-2xl text-muted">:{pick(localParts, 'second')}</span>
+            </span>
+            {hour12 && <span className="text-2xl text-muted">{pick(localParts, 'dayPeriod').toUpperCase()}</span>}
+          </div>
+          <div className="mt-1 text-sm text-ink-2">{new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' }).format(now)}</div>
+          <div className="widget-wrap font-mono text-[0.6875rem] text-muted">{local}</div>
         </div>
-        <div className="mt-1 text-sm text-ink-2">{new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' }).format(now)}</div>
-        <div className="font-mono text-[0.6875rem] text-muted">{local}</div>
+        {zones.length > 0 ? (
+          <ul className="widget-clock-zones divide-y divide-rule-2">
+            {zones.map((z) => {
+              const offset = offsetOf(z)
+              return (
+                <li key={z} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-4 py-2" title={`${z} · ${offset}`}>
+                  <span className="min-w-0 flex-1">
+                    <span className="widget-wrap block text-sm">{zoneLabel(z)}</span>
+                    <span className="block text-[0.6875rem] text-muted">{dayWord(now, z)}<span className="widget-inline-more"> · {offset}</span></span>
+                  </span>
+                  <span className="min-w-0 font-mono text-sm tabular-nums">{time(z)}</span>
+                </li>
+              )
+            })}
+          </ul>
+        ) : admin ? (
+          <p className="mt-auto border-t border-rule-2 px-4 py-3 text-xs text-muted">Use the pencil to add other cities, for family or friends abroad.</p>
+        ) : null}
       </div>
-      {zones.length > 0 ? (
-        <ul className="mt-auto divide-y divide-rule-2 border-t border-rule-2">
-          {zones.map((z) => (
-            <li key={z} className="flex items-baseline justify-between gap-3 px-4 py-2" title={`${z} · ${offsetOf(z)}`}>
-              <span className="min-w-0">
-                <span className="block truncate text-sm">{zoneLabel(z)}</span>
-                <span className="block text-[0.6875rem] text-muted">{dayWord(now, z)}</span>
-              </span>
-              <span className="font-mono text-lg tabular-nums">{time(z)}</span>
-            </li>
-          ))}
-        </ul>
-      ) : admin ? (
-        <p className="mt-auto border-t border-rule-2 px-4 py-3 text-xs text-muted">Use the pencil to add other cities, for family or friends abroad.</p>
-      ) : null}
     </Widget>
   )
 }
@@ -68,7 +76,9 @@ export function NotesWidget({ text }: { text: string; admin: boolean }) {
   return (
     <Widget title="Notes" className="max-h-[24rem]" aside={<EditPencil kind="notes" />}>
       {text.trim() ? (
-        <p className="min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words px-4 py-3 text-sm">{text}</p>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          <p className="widget-wrap max-w-[72ch] whitespace-pre-wrap text-sm">{text}</p>
+        </div>
       ) : (
         <div className="flex flex-1 flex-col items-start justify-center gap-3 p-4">
           <p className="text-sm text-ink-2">A shared note for the household: Wi-Fi password, chores, reminders.</p>
@@ -94,9 +104,9 @@ function hostOf(u: string) {
 /** The site's own icon, fetched by Haven's server. A letter stands in until it loads, or when there is none. */
 function LinkIcon({ index, link }: { index: number; link: Link }) {
   const [failed, setFailed] = useState(false)
-  const letter = (link.name[0] || '?').toUpperCase()
+  const letter = (Array.from(link.name)[0] || '?').toUpperCase()
   return (
-    <span className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-[3px] border border-rule bg-accent-wash font-mono text-sm font-semibold text-accent" aria-hidden>
+    <span className="widget-link-icon relative grid shrink-0 place-items-center overflow-hidden rounded-[3px] border border-rule bg-accent-wash font-mono text-sm font-semibold text-accent" aria-hidden>
       {letter}
       {!failed && <img src={`/api/widgets/favicon?i=${index}&k=${encodeURIComponent(link.url)}`} alt="" loading="lazy" onError={() => setFailed(true)} className="absolute inset-0 h-full w-full bg-well object-contain p-1" />}
     </span>
@@ -107,15 +117,16 @@ export function LinksWidget({ links }: { links: Link[]; admin: boolean }) {
   return (
     <Widget title="Quick links" className="max-h-[24rem]" aside={<EditPencil kind="links" />}>
       {links.length > 0 ? (
-        <ul className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 gap-px overflow-y-auto bg-rule-2 sm:grid-cols-2 md:grid-cols-1 2xl:grid-cols-2">
+        <ul className="widget-links min-h-0 flex-1 overflow-y-auto">
           {links.map((l, i) => (
-            <li key={l.url + l.name} className="bg-plate">
-              <a href={l.url} target="_blank" rel="noreferrer noopener" className="flex items-center gap-3 px-3 py-2.5 hover:bg-raised">
+            <li key={l.url + l.name}>
+              <a href={l.url} target="_blank" rel="noreferrer noopener" title={l.name} className="widget-link-key">
                 <LinkIcon index={i} link={l} />
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium">{l.name}</span>
+                <span className="widget-link-label">
+                  <span className="block truncate text-sm font-semibold">{l.name}</span>
                   <span className="block truncate font-mono text-[0.6875rem] text-muted">{hostOf(l.url)}</span>
                 </span>
+                <ArrowUpRight size={15} className="widget-link-arrow" aria-hidden />
               </a>
             </li>
           ))}
@@ -159,15 +170,16 @@ export function StatusWidget({ results }: { results: CheckResult[]; checks: { na
       }
     >
       {results.length > 0 ? (
-        <ul className="min-h-0 flex-1 divide-y divide-rule-2 overflow-y-auto">
+        <ul className="widget-paired-list min-h-0 flex-1 overflow-y-auto">
           {results.map((r) => (
             <li key={r.target} className="flex items-center gap-3 px-4 py-2.5">
               <Led s={r.pending ? 'off' : r.up ? 'ok' : 'bad'} label={r.pending ? 'Checking' : r.up ? 'Up' : 'Down'} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{r.name}</span>
+                <span className="widget-wrap line-clamp-2 text-sm font-medium" title={r.name}>{r.name}</span>
                 <span className="block truncate font-mono text-[0.6875rem] text-muted" title={r.target}>
                   {r.pending ? 'checking…' : r.up ? r.target : `${r.error || 'down'} ${downFor(r.since)}`}
                 </span>
+                {!r.up && !r.pending && <span className="widget-more truncate font-mono text-[0.6875rem] text-muted" title={r.target}>{r.target}</span>}
               </span>
               {r.up && !r.pending && r.ms !== undefined && <span className="shrink-0 font-mono text-xs text-muted">{r.ms} ms</span>}
               {r.pending && <Spinner size={12} />}

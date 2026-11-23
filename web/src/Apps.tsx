@@ -8,6 +8,7 @@ import { SettingField } from './Store'
 import { DiagnosisView } from './diagnosis'
 import type { Diagnosis } from './api'
 import { VersionPicker } from './VersionPicker'
+import { BackupDialog, RestoreBackupDialog } from './backups'
 
 function useAppAction() {
   const { openJob, refreshApps } = useHaven()
@@ -24,7 +25,9 @@ function useAppAction() {
 
 export default function AppsPage() {
   const { apps, appsReady, containers, dockerError, openApp, navigate } = useHaven()
+  const { role } = useHaven()
   const [logsFor, setLogsFor] = useState<Container | null>(null)
+  const [restoreBackup, setRestoreBackup] = useState(false)
   const running = apps.filter((a) => a.status === 'running').length
 
   return (
@@ -36,9 +39,12 @@ export default function AppsPage() {
             {!appsReady ? 'Reading your apps…' : apps.length === 0 ? 'Nothing installed yet.' : `${running} of ${apps.length} running. Select an app for logs, settings and updates.`}
           </p>
         </div>
-        <button className="key" onClick={() => navigate('catalog')}>
-          Browse catalog
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {role === 'admin' && <button className="key" onClick={() => setRestoreBackup(true)}>Restore backup</button>}
+          <button className="key" onClick={() => navigate('catalog')}>
+            Browse catalog
+          </button>
+        </div>
       </div>
 
       {dockerError && (
@@ -86,6 +92,7 @@ export default function AppsPage() {
       <Modal open={!!logsFor} onClose={() => setLogsFor(null)} wide label="Logs" title={logsFor?.name}>
         {logsFor && <LogsView load={() => api.containerLogs(logsFor.id).then((r) => r.logs)} />}
       </Modal>
+      {restoreBackup && <RestoreBackupDialog onClose={() => setRestoreBackup(false)} />}
     </div>
   )
 }
@@ -238,10 +245,12 @@ export function AppDrawer({ id, onClose }: { id: string | null; onClose: () => v
   const [tab, setTab] = useState<Tab>('overview')
   const [detail, setDetail] = useState<{ compose: string; env: Record<string, string>; settings?: Setting[] } | null>(null)
   const [confirmRemove, setConfirmRemove] = useState(false)
+  const [backup, setBackup] = useState(false)
 
   useEffect(() => {
     setTab('overview')
     setDetail(null)
+    setBackup(false)
     if (id && manage) api.app(id).then(setDetail).catch(() => {})
   }, [id, manage])
 
@@ -331,6 +340,7 @@ export function AppDrawer({ id, onClose }: { id: string | null; onClose: () => v
               <button className={cx('key', app.updateAvailable && 'text-accent')} disabled={busy} onClick={() => run(app, 'update')}>
                 <CircleArrowUp size={14} /> {app.updateAvailable ? `Update to ${app.updateAvailable}` : 'Pull latest'}
               </button>
+              {role === 'admin' && <button className="key" disabled={busy} onClick={() => setBackup(true)}>Back up</button>}
               <button className="key key-danger sm:ml-auto" disabled={busy} onClick={() => setConfirmRemove(true)}>
                 <Trash2 size={14} /> Uninstall
               </button>
@@ -430,6 +440,7 @@ export function AppDrawer({ id, onClose }: { id: string | null; onClose: () => v
       </div>
 
       <UninstallDialog app={confirmRemove ? app : null} onClose={() => setConfirmRemove(false)} onDone={onClose} />
+      {backup && <BackupDialog key={app.id} app={app} onClose={() => setBackup(false)} />}
     </Drawer>
   )
 }

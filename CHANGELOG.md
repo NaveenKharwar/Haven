@@ -2,6 +2,14 @@
 
 Each release's notes come from its section here. Add a `## <version>` section before you tag. If there is none, the release notes list the commit titles since the last release.
 
+## 0.1.34
+
+- Added optional backups before app updates and improved rollback reporting when the previous version cannot restart.
+- Added widget width controls, improved dashboard layout editing and made widgets adapt to available space. Updated Quick Links and collapsed Usage by app and Activity by default.
+- Added account display names, streamlined TV access, and added TorrServer to the catalog.
+- Added New badges to recent catalog additions and improved notification actions, filtering and job links.
+- Improved file browsing with list and grid views, selection, folder navigation and resumable uploads.
+
 ## 0.1.33
 
 - **Air Quality widget & multi-year historical comparison**:

@@ -8,9 +8,10 @@ Haven is one program. Your apps are ordinary Docker Compose projects, so if you 
 
 ## Features
 
-- **App store:** 58 self-hosted apps. Each one is checked against your server (ports, disk, RAM, CPU type) before it installs. Choose from recommended, latest, recent release versions, or custom image tags with live registry matching.
+- **App store:** 60 self-hosted apps. Each one is checked against your server (ports, disk, RAM, CPU type) before it installs. Choose from recommended, latest, recent release versions, or custom image tags with live registry matching.
 - **Clear errors:** a failed install or update explains the cause, and every app has a Diagnose button.
 - **Safe updates:** apps and Haven itself update with one click and roll back if the new version doesn't start. Haven's own releases are signed.
+- **App backups:** save and restore Compose configuration and local data for catalog and custom apps.
 - **Overview:** eight widgets you can rearrange: clock, weather, markets, currency, news, notes, quick links and status checks for your router or apps.
 - **Server tools:** remote access with Tailscale, a `haven.local` address, Wi-Fi and network settings, lid and power control, a health check, a file explorer and disk cleanup.
 - **People:** one admin, plus managers, members and guests who see only the apps you share.
@@ -58,6 +59,16 @@ If the server runs `ufw`, allow the port with `sudo ufw allow 8484/tcp`.
 
 For TV mode, open `http://SERVER_IP:8484/tv` in the TV's browser. The TV shows a six-letter code. Type it under **Settings → TV** on your phone and the TV signs itself in.
 
+## Back up and restore an app
+
+As an admin, open an app from **Apps** and choose **Back up**. Enter an existing folder on the Haven server, ideally on a separate drive, and review the storage list. Choose any host folders you want to include and pause other programs writing to those folders. Haven stops the app while it copies files and restarts the containers that were already running. The job log shows the resulting `.haven-backup` folder.
+
+Keep that whole folder together. It contains the app's Compose files, settings and passwords, Haven-managed app data, and supported local Docker volumes. Haven lists excluded storage, including anonymous or external Docker volumes. Remote databases, image binaries and container writable layers need separate backups. Files and directories keep ordinary permissions and, when Haven runs as root on compatible storage, numeric ownership. Use a private destination that supports Unix permissions and symbolic links.
+
+On **Updates**, an admin can also choose **Back up before updating** and enter a destination folder. The option applies to individual updates and batches. If a backup fails, Haven skips that app and continues with the rest. These backups include Haven-managed data and supported local Docker volumes. Use the app's **Back up** dialog to include host folders.
+
+On the target server, use **Apps → Restore backup** and enter the path to the copied `.haven-backup` folder. Review a trusted backup, then restore it. The original app ID, Docker project, and restored storage paths must be unused. Included host folders can be restored to their original paths if you select them. Haven restores the app stopped so you can check image availability, ports and external dependencies before starting it.
+
 ## Security
 
 Haven runs as root, so treat it like the keys to your server.
@@ -95,9 +106,11 @@ bash scripts/test-get.sh        # tests the one-line installer
 
 To add an app to the store, copy a file in `catalog/` and edit it. `go test` rejects mistakes such as an undefined `${VAR}`, a missing image tag, or a port another app already uses. Built-in variables: `APP_DATA`, `APP_VERSION`, `VERSION`, `PUID`, `PGID`, `TZ`. The visual style is described in [design.md](design.md). Maintainers publish releases as described in [docs/RELEASING.md](docs/RELEASING.md).
 
+Set `added: "YYYY-MM-DD"` to the date an app first joins the catalog. Haven shows the New badge for 30 days from that date.
+
 ## Roadmap
 
-- Backups and restore, with a schedule and a one-click restore
+- Scheduled app backups
 - Domains and automatic HTTPS for each app
 - A web terminal
 - Alerts in plain words: a filling disk, a failing drive, an app that keeps crashing
