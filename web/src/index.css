@@ -140,6 +140,20 @@ h1, h2, h3, h4 { font-style: normal; text-wrap: balance; overflow-wrap: anywhere
 * { scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
+@layer base {
+  button:enabled, a[href], summary, select:enabled,
+  input:is([type="checkbox"], [type="radio"], [type="file"], [type="range"]):enabled,
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([aria-disabled="true"]),
+  label:has(input:is([type="checkbox"], [type="radio"], [type="file"]):enabled) {
+    cursor: pointer;
+  }
+  button:disabled, select:disabled, input:disabled, [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
 @layer components {
   /* A plate is one panel of the faceplate: hairline edge, faint top bevel. */
   .plate {

@@ -28,8 +28,9 @@ Modern-minimal, technical register. Custom theme (not from a catalog).
   a spec-sheet panel for installing. New entries carry a small accent tag.
 - Notifications use a scrollable plate with All and Unread modes. Each item
   has explicit read, dismiss and destination controls when available.
-- Files shares a selection model between list and grid. Click to select,
-  double-click or press Enter to open, and keep an Open button for touch.
+- Files shares a selection model between list and grid. Select items with
+  their checkboxes, double-click or press Enter to open, and keep an Open
+  button for touch.
 - TV: a 10-foot launcher. Meter bank on top, then horizontal rows of large
   tiles navigated with a remote.
 

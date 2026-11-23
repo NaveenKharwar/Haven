@@ -223,24 +223,13 @@ export default function FilesPanel({ initialPath, admin = false }: { initialPath
                         className={cx('file-entry-key min-w-0 select-none text-left', view === 'grid' ? 'flex w-full flex-col items-start gap-2 px-3 pb-2 pt-9' : 'grid flex-1 items-center gap-3 py-2')}
                         disabled={busy}
                         aria-label={e.name}
-                        aria-pressed={selected}
                         title={`${e.name} · ${e.dir ? 'Folder' : formatBytes(e.size)} · ${when(e.mod)}`}
                         onClick={(event) => {
                           if (event.detail === 0) {
                             void activate(e)
-                          } else if (event.metaKey || event.ctrlKey) {
-                            toggle(e.path)
-                          } else {
-                            setPicked(new Set([e.path]))
                           }
                         }}
                         onDoubleClick={() => void activate(e)}
-                        onKeyDown={(event) => {
-                          if (event.key === ' ') {
-                            event.preventDefault()
-                            if (!event.repeat) toggle(e.path)
-                          }
-                        }}
                       >
                         <span className={cx('flex min-w-0 gap-2', view === 'grid' ? 'w-full flex-col' : 'items-center')}>
                           <Icon size={view === 'grid' ? 32 : 17} className={cx('shrink-0', e.dir ? 'text-accent' : 'text-muted')} />

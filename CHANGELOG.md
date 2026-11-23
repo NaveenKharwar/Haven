@@ -2,6 +2,11 @@
 
 Each release's notes come from its section here. Add a `## <version>` section before you tag. If there is none, the release notes list the commit titles since the last release.
 
+## 0.1.35
+
+- Show pointer cursors on interactive controls throughout Haven.
+- Keep file and folder selection independent from opening items, using checkboxes for selection.
+
 ## 0.1.34
 
 - Added optional backups before app updates and improved rollback reporting when the previous version cannot restart.
