@@ -2,7 +2,7 @@
 
 Each release's notes come from its section here. Add a `## <version>` section before you tag. If there is none, the release notes list the commit titles since the last release.
 
-## Unreleased
+## 0.1.37
 
 - Keep the Backup health widget aligned with neighboring widgets when it lists many apps.
 
