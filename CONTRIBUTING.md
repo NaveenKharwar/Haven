@@ -14,7 +14,22 @@ For example, `feature/backup-health-widget`. Include an issue number when useful
 
 ## Commits
 
-Use Conventional Commits: `type: imperative summary`, optionally with a scope, such as `feat(widgets): add backup health` or `fix(files): preserve selection`. Common types are `feat`, `fix`, `docs`, `refactor`, `test`, `build`, and `chore`. Keep the subject concise and explain why in the body when it is not obvious. Group related changes into reviewable commits; never commit secrets, local data, or generated build artifacts unless the project explicitly tracks them.
+Use concise Conventional Commits:
+
+```text
+type(scope): imperative summary
+```
+
+The scope is optional. Use lowercase types such as `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `build`, `ci`, `style`, `chore`, or `revert`. Write the summary as an imperative (for example, `add`, not `added`), without a trailing period. Aim for at most 50 characters for the whole subject; never exceed 72.
+
+```text
+feat(widgets): add backup health
+fix(files): preserve selection
+```
+
+Omit the body when the subject tells the whole story. When context is needed, leave a blank line after the subject and explain why the change is needed rather than repeating the diff. Wrap body lines at 72 characters, use `-` for bullets, and put issue references at the end (for example, `Closes #42`). Include a body for breaking changes, security fixes, data migrations, and reverts; describe the impact and any required action. Mark breaking changes with `!` and a `BREAKING CHANGE:` footer where appropriate.
+
+Keep related changes in reviewable commits. Do not include filler, emoji, or tool attribution in commit messages. Never commit secrets, local data, or generated build artifacts unless the project explicitly tracks them.
 
 ## Changes and checks
 
