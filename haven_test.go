@@ -1460,7 +1460,7 @@ func TestWidgetTestOnlyContactsWidgetHosts(t *testing.T) {
 func TestWidgetOrderIsCleaned(t *testing.T) {
 	w := WidgetSettings{Order: []string{"news", "bogus", "weather", "news"}, Hidden: []string{"markets", "x", "markets"}}
 	w.normalize()
-	if got := strings.Join(w.Order, ","); got != "news,weather,aqi,markets,currency,clock,notes,links,status" {
+	if got := strings.Join(w.Order, ","); got != "news,weather,aqi,markets,currency,clock,notes,links,status,backup" {
 		t.Errorf("order = %s", got)
 	}
 	if got := strings.Join(w.Hidden, ","); got != "markets" {
@@ -1468,7 +1468,7 @@ func TestWidgetOrderIsCleaned(t *testing.T) {
 	}
 	empty := WidgetSettings{}
 	empty.normalize()
-	if got := strings.Join(empty.Order, ","); got != "weather,aqi,markets,currency,news,clock,notes,links,status" {
+	if got := strings.Join(empty.Order, ","); got != "weather,aqi,markets,currency,news,clock,notes,links,status,backup" {
 		t.Errorf("default order = %s", got)
 	}
 }

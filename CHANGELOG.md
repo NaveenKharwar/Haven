@@ -2,6 +2,11 @@
 
 Each release's notes come from its section here. Add a `## <version>` section before you tag. If there is none, the release notes list the commit titles since the last release.
 
+## Unreleased
+
+- Added a Backup health widget showing recorded backup results for installed apps.
+- Documented contribution and branch conventions and updated the Overview widget list.
+
 ## 0.1.35
 
 - Show pointer cursors on interactive controls throughout Haven.

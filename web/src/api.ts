@@ -437,6 +437,7 @@ export const api = {
   containerAction: (id: string, action: 'start' | 'stop' | 'restart') => request('POST', `/api/containers/${id}/${action}`),
   containerLogs: (id: string, tail = 300) => request<{ logs: string }>('GET', `/api/containers/${id}/logs?tail=${tail}`),
   job: (id: string) => request<Job>('GET', `/api/jobs/${id}`),
+  backupHealth: () => request<BackupHealth[]>('GET', '/api/backup-health'),
   jobs: () => request<Job[]>('GET', '/api/jobs'),
   tvStart: () => request<{ code: string; id: string; expiresIn: number }>('POST', '/api/auth/tv/start'),
   tvPoll: (id: string) => request<{ status: 'pending' | 'approved' | 'expired' }>('POST', '/api/auth/tv/poll', { id }),
@@ -598,3 +599,5 @@ export function timeOf(iso: string): string {
   const d = new Date(iso)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
+
+export type BackupHealth = { id: string; name: string; lastSuccess?: string; lastAttempt?: string; failed?: boolean }
