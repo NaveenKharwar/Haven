@@ -7,6 +7,7 @@ import { Ctx } from './context'
 import { Widget } from './widgetshell'
 import { ClockWidget, LinksWidget, NotesWidget, StatusWidget } from './extrawidgets'
 import { AirQualityWidget } from './airquality'
+import { BackupHealthWidget } from './backuphealth'
 import { EditCta, EditPencil } from './widgeteditors'
 import { PRIVATE_KEYS, W_DEFAULT, W_NAMES, type WKey, type WidgetWidth } from './widgetmeta'
 import { useWidgetLayoutMotion, widgetOrder, type WidgetLayout } from './widgetlayout'
@@ -502,11 +503,11 @@ export function WidgetBoard({ data }: { data: WidgetData | null }) {
   }
 
   const isOff = (key: WKey) => {
-    if (key === 'clock' || key === 'notes' || key === 'links') return false
+    if (key === 'clock' || key === 'notes' || key === 'links' || key === 'backup') return false
     return !!data[key]?.off && !settings.hidden?.includes(key)
   }
   const emptyForViewer = (key: WKey) => (key === 'notes' && !settings.notes?.trim()) || (key === 'links' && !settings.links?.length) || (key === 'status' && !settings.checks?.length)
-  const visible = layout.order.filter((key) => !layout.hidden.includes(key) && !isOff(key) && !(PRIVATE_KEYS.includes(key) && !manager) && !(!admin && emptyForViewer(key)))
+  const visible = layout.order.filter((key) => !layout.hidden.includes(key) && !isOff(key) && !(PRIVATE_KEYS.includes(key) && !manager) && !(key === 'backup' && !admin) && !(!admin && emptyForViewer(key)))
   if (!editing) {
     try {
       localStorage.setItem('haven-widget-count', String(visible.length))
@@ -533,6 +534,8 @@ export function WidgetBoard({ data }: { data: WidgetData | null }) {
         return <NotesWidget text={data.settings.notes || ''} admin={admin} />
       case 'links':
         return <LinksWidget links={data.settings.links || []} admin={admin} />
+      case 'backup':
+        return <BackupHealthWidget />
       case 'status':
         return <StatusWidget results={data.status?.data || []} checks={data.settings.checks || []} admin={admin} />
     }

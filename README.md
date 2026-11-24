@@ -12,7 +12,7 @@ Haven is one program. Your apps are ordinary Docker Compose projects, so if you 
 - **Clear errors:** a failed install or update explains the cause, and every app has a Diagnose button.
 - **Safe updates:** apps and Haven itself update with one click and roll back if the new version doesn't start. Haven's own releases are signed.
 - **App backups:** save and restore Compose configuration and local data for catalog and custom apps.
-- **Overview:** eight widgets you can rearrange: clock, weather, markets, currency, news, notes, quick links and status checks for your router or apps.
+- **Overview:** ten widgets you can rearrange: clock, weather, air quality, markets, currency, news, notes, quick links, status checks and backup health for your router or apps.
 - **Server tools:** remote access with Tailscale, a `haven.local` address, Wi-Fi and network settings, lid and power control, a health check, a file explorer and disk cleanup.
 - **People:** one admin, plus managers, members and guests who see only the apps you share.
 - **TV mode:** a remote-friendly screen that you sign in to with a code from your phone.
@@ -118,6 +118,10 @@ Set `added: "YYYY-MM-DD"` to the date an app first joins the catalog. Haven show
 - Export and import of Haven's own settings (widgets, people, device names)
 - Search everywhere with Ctrl/Cmd+K
 - More store apps
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for branch names, commit messages, checks and review guidelines.
 
 ## Licence
 

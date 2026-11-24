@@ -73,6 +73,8 @@ export function withScheme(raw: string) {
 
 function pick(kind: WKey, w: WidgetSettings): Partial<WidgetSettings> {
   switch (kind) {
+    case 'backup':
+      return {}
     case 'weather':
     case 'aqi':
       return { places: w.places, units: w.units }
@@ -93,7 +95,7 @@ function pick(kind: WKey, w: WidgetSettings): Partial<WidgetSettings> {
   }
 }
 
-const WIDE: Record<WKey, boolean> = { weather: false, aqi: false, news: true, currency: false, markets: true, clock: false, notes: false, links: true, status: true }
+const WIDE: Record<WKey, boolean> = { weather: false, aqi: false, news: true, currency: false, markets: true, clock: false, notes: false, links: true, status: true, backup: false }
 
 type Edit = { w: WidgetSettings; set: (patch: Partial<WidgetSettings>) => void }
 
@@ -310,6 +312,7 @@ const BODIES: Record<WKey, (e: Edit) => ReactNode> = {
   notes: (e) => <NotesBody {...e} />,
   links: (e) => <LinksBody {...e} />,
   status: (e) => <StatusBody {...e} />,
+  backup: () => <p className="text-sm text-ink-2">Backup health shows results recorded by Haven. Manage visibility in Edit layout.</p>,
 }
 
 /** The settings dialog of one widget. Save stores them; Cancel throws the changes away. */
@@ -419,6 +422,8 @@ function summary(k: WKey, w: WidgetSettings): string {
       return (w.notes || '').trim() ? (w.notes || '').trim().slice(0, 60) : 'Empty'
     case 'links':
       return `${(w.links || []).length} link${(w.links || []).length === 1 ? '' : 's'}`
+    case 'backup':
+      return 'Recorded backup results'
     case 'status':
       return `${(w.checks || []).length} check${(w.checks || []).length === 1 ? '' : 's'}`
   }

@@ -152,6 +152,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/ui", auth(s.getUI))
 	mux.Handle("PUT /api/ui", s.need(RoleAdmin, s.putUI))
 	mux.Handle("GET /api/widgets", auth(s.getWidgets))
+	mux.Handle("GET /api/backup-health", s.need(RoleAdmin, s.getBackupHealth))
 	mux.Handle("GET /api/widgets/test", s.need(RoleAdmin, s.widgetTest))
 	mux.Handle("GET /api/widgets/favicon", s.need(RoleManager, s.widgetFavicon))
 	mux.Handle("GET /api/widgets/places", s.need(RoleAdmin, s.findPlaces))

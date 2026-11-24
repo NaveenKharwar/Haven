@@ -76,7 +76,7 @@ type QuickLink struct {
 }
 
 // widgetKeys are the Overview widgets, in their default order.
-var widgetKeys = []string{"weather", "aqi", "markets", "currency", "news", "clock", "notes", "links", "status"}
+var widgetKeys = []string{"weather", "aqi", "markets", "currency", "news", "clock", "notes", "links", "status", "backup"}
 
 type Background struct {
 	Shader string  `json:"shader"` // "" = plain faceplate

@@ -273,6 +273,7 @@ func (m *Manager) startBackup(id, destination string, folders []string) (*Job, e
 }
 
 func (m *Manager) backupApp(ctx context.Context, j *Job, id, dest string, folders []string) (result error) {
+	defer func() { m.recordBackupResult(id, result) }()
 	meta, err := m.readMeta(id)
 	if err != nil {
 		return err
