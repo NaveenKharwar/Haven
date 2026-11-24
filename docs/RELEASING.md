@@ -53,11 +53,17 @@ If you only suspect a leak and the key was never published, do the same swap any
 
 ## Making a release
 
-1. Add a `## <version>` section to `CHANGELOG.md` describing what changed.
-2. Commit and push, then tag and push the tag:
+1. Check the latest published release and the changes merged into `main` since it. Choose the next version for the scope of the changes; for example, a patch release after `0.1.35` is `0.1.36`. Check that the version and tag do not already exist.
+2. Start a short-lived release branch from the current `main` (for example, `release/0.1.36`). In `CHANGELOG.md`, move the relevant `Unreleased` notes into a `## 0.1.36` section. Write clear user-facing notes and verify they cover the changes being released. Do not change previous release sections.
+3. Commit and push the release branch, then open a pull request targeting `main`. Explain that it prepares the release and include the checks performed. Wait for CI and required reviews; resolve failures or feedback before merging. See [CONTRIBUTING.md](../CONTRIBUTING.md) for commit and PR conventions.
+4. Merge the release PR into `main`, then fetch the updated `main`. Verify the merged commit contains the intended code and the matching changelog section. Create the tag on that merged commit, not on an older release or an unmerged branch. For example:
 
-```bash
-git tag v0.2.0 && git push origin v0.2.0
-```
+   ```bash
+   git fetch origin main
+   git tag v0.1.36 origin/main
+   git push origin v0.1.36
+   ```
 
-3. Watch the Release workflow on the Actions tab. When it is green, the release is published and `releases/latest/download/get.sh` points at it.
+   Tagging publishes a release through GitHub Actions. Do not reuse or move an existing release tag.
+5. Watch the **Release** workflow in GitHub Actions until it finishes. If it fails, investigate and resolve the failure before considering the release complete; do not claim that a release was published just because the tag was pushed.
+6. Verify the GitHub Release has the intended version, changelog notes, signed checksums, binaries and installer assets listed above. Confirm that the latest-release download for `get.sh` points to the new release. Report the release URL and any unresolved issues.
