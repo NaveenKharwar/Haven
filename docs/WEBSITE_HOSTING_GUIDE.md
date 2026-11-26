@@ -167,7 +167,7 @@ For a Cloudflare Tunnel, your domain must already be an active zone in Cloudflar
 | Zone | Your domain | Zone → Read |
 | Zone | Your domain | DNS → Edit |
 
-Treat the token like a password. Tunnel Edit can manage tunnels in the selected account, and DNS Edit can change DNS records throughout the selected zone—not just this hostname. Cloudflare's documented API accepts DNS Edit for the zone lookup too; Zone Read is included explicitly to match Haven's setup guidance, not claimed as a proven minimum. Account and zone discovery have been verified with these scopes. Tunnel creation, publication and cleanup with this narrow scope still need end-to-end verification. See [permission details](HOSTING.md#cloudflare-tunnel).
+Treat the token like a password. Tunnel Edit can manage tunnels in the selected account, and DNS Edit can change DNS records throughout the selected zone—not just this hostname. Cloudflare's documented API accepts DNS Edit for the zone lookup too; Zone Read is included explicitly to match Haven's setup guidance, not claimed as a proven minimum. Account and zone discovery, Tunnel creation and configuration, connector-token retrieval, DNS ownership checks, and cleanup have passed the live API workflow with these scopes. Connector connectivity and public HTTPS still need automated end-to-end verification. See [permission details](HOSTING.md#cloudflare-tunnel).
 
 ### Connect Cloudflare to Haven
 

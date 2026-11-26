@@ -4,12 +4,14 @@ Each release's notes come from its section here. Add a `## <version>` section be
 
 ## Unreleased
 
+## 0.1.38
+
 - Added an experimental, opt-in Hosting preview for private Coolify website installs and reviewed HTTPS publishing through Cloudflare Tunnel or direct access. Tunnel publishing is verified; direct public HTTPS remains unverified.
 - Added automatic Cloudflare account and zone discovery from a root domain and scoped API token.
 - Added hosting capacity warnings, partial Coolify installation recovery, streamed installer logs, and a longer setup deadline.
 - Added persisted deployment states and private HTTP readiness checks before Haven reports a website as ready.
 - Added guided static HTML hosting and clear Coolify paths for Git-based modern frameworks, Docker images, and advanced Compose applications.
-- Added a protected manual Cloudflare API lifecycle check for real permission, Tunnel, DNS ownership, retry, conflict, and cleanup verification.
+- Added a protected manual Cloudflare API lifecycle check. The documented narrow token passed live permission, Tunnel configuration, connector-token retrieval, DNS ownership, retry, conflict, and cleanup verification.
 
 ## 0.1.37
 
