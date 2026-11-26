@@ -4,6 +4,8 @@ Each release's notes come from its section here. Add a `## <version>` section be
 
 ## Unreleased
 
+- Added actionable explanations and recovery steps to Hosting installation checks, including a safe inline flow when Haven occupies port 80.
+
 ## 0.1.39
 
 - Clarified first-time Coolify setup by separating guided installation from existing connections, revealing connection resources only when needed, adding token visibility controls, and linking the beginner guide from Hosting.

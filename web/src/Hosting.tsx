@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { BookOpen, Eye, EyeOff } from 'lucide-react'
 import { repoUrl } from './about'
 import {
-  hostingApi, type HostingConnection, type HostingDiscovery, type HostingHealth, type HostingResource,
+  api, hostingApi, type HostingConnection, type HostingDiscovery, type HostingHealth, type HostingResource,
   type HostingReview, type HostingSite, type HostingState, type HostingTemplate,
 } from './api'
 import { ErrorLine, Led, Modal, Notice, Sections, Spinner, usePoll } from './components'
@@ -76,6 +76,7 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
   const [token, setToken] = useState('')
   const [found, setFound] = useState<HostingDiscovery>()
   const [checks, setChecks] = useState<Awaited<ReturnType<typeof hostingApi.preflight>>>()
+  const [havenPort, setHavenPort] = useState('')
   const [install, setInstall] = useState(false)
   const [recover, setRecover] = useState(false)
   const [edit, setEdit] = useState(false)
@@ -110,6 +111,20 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
     setFound(undefined)
     setEdit(false)
   }
+  const runChecks = () => void run(async () => {
+    const [results, local] = await Promise.all([hostingApi.preflight(), api.localName()])
+    return { results, havenPort: local.havenPort }
+  }, ({ results, havenPort: port }) => {
+    setChecks(results)
+    setHavenPort(port)
+  })
+  const disableHavenPort80 = () => void run(async () => {
+    await api.setPort80(false)
+    return hostingApi.preflight()
+  }, setChecks)
+  const host = window.location.hostname.includes(':') ? `[${window.location.hostname}]` : window.location.hostname
+  const mainPortURL = havenPort ? `${window.location.protocol}//${host}:${havenPort}/hosting` : ''
+  const onMainPort = window.location.port === havenPort
 
   return (
     <Plate title="Coolify" tools={edit
@@ -169,7 +184,7 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
                   <h4 className="font-semibold">Install on this server</h4>
                   <p className="text-sm text-ink-2">Check this server, then install the supported release.</p>
                 </div>
-                <div className="mt-auto pt-1"><button className="key key-primary" type="button" disabled={busy} data-loading={busy} onClick={() => void run(hostingApi.preflight, setChecks)}>{checks ? 'Run checks again' : 'Run install checks'}</button></div>
+                <div className="mt-auto pt-1"><button className="key key-primary" type="button" disabled={busy} data-loading={busy} onClick={runChecks}>{checks ? 'Run checks again' : 'Run install checks'}</button></div>
               </div>
               <div className="flex h-full flex-col gap-3 py-4 sm:pl-5">
                 <div className="space-y-1">
@@ -188,7 +203,16 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
                   }).map((c) => {
                     const state = c.warning || c.recoverable ? 'warn' : c.ok ? 'ok' : 'bad'
                     const label = c.warning ? 'Warning' : c.recoverable ? 'Can resume' : c.ok ? 'Passed' : 'Blocked'
-                    return <li key={c.name} className="flex items-start gap-2 py-2 text-sm"><span className="mt-1"><Led s={state} label={label} /></span><div><strong>{c.name}</strong><p className="text-muted">{c.info}</p></div></li>
+                    const actionable = !c.ok || c.warning || c.recoverable
+                    return <li key={c.name} className="flex items-start gap-2 py-2 text-sm"><span className="mt-1"><Led s={state} label={label} /></span><div className="min-w-0"><strong>{c.name}</strong><p className="text-muted">{c.info}</p>{actionable && (c.details || c.fix) && <details className="mt-2 text-xs">
+                      <summary className="cursor-pointer text-ink-2">Show details and fix</summary>
+                      <div className="mt-2 max-w-2xl space-y-2 text-muted">
+                        {c.details && <p><strong className="text-ink-2">What this means:</strong> {c.details}</p>}
+                        {c.fix && <p><strong className="text-ink-2">How to fix it:</strong> {c.fix}</p>}
+                      </div>
+                    </details>}{c.action === 'disable-haven-port-80' && havenPort && (onMainPort
+                      ? <button className="key key-sm mt-2" type="button" disabled={busy} data-loading={busy} onClick={disableHavenPort80}>Turn off Haven on port 80</button>
+                      : <a className="key key-sm mt-2 inline-flex" href={mainPortURL}>Continue on port {havenPort}</a>)}</div></li>
                   })}
                 </ul>
                 {checks.every((c) => c.ok) && <button className="key" onClick={() => { setRecover(false); setInstall(true) }}>Review Coolify installation</button>}

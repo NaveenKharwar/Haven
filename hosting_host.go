@@ -32,6 +32,9 @@ type hostingCheck struct {
 	Warning     bool   `json:"warning,omitempty"`
 	Recoverable bool   `json:"recoverable,omitempty"`
 	Info        string `json:"info"`
+	Details     string `json:"details,omitempty"`
+	Fix         string `json:"fix,omitempty"`
+	Action      string `json:"action,omitempty"`
 }
 
 func (h *Hosting) setupChecks(ctx context.Context) []hostingCheck {
@@ -42,27 +45,33 @@ func (h *Hosting) setupChecks(ctx context.Context) []hostingCheck {
 	loadAvg, _ := load.AvgWithContext(ctx)
 	storage, _ := disk.UsageWithContext(ctx, "/")
 	checks := []hostingCheck{
-		{Name: "Host", OK: isLinux() && os.Geteuid() == 0 && (runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64"), Info: "Requires a Linux amd64 or arm64 Haven server running as root."},
-		{Name: "CPU", OK: runtime.NumCPU() >= 2, Info: "Coolify needs at least two CPU cores; four or more improves builds and deployments."},
-		{Name: "Docker and Compose", OK: err == nil && composeErr == nil && dockerLoopbackSafe(v), Info: "Requires a working Docker Engine 28 or later and the Compose plugin."},
-		{Name: "Memory", OK: memory != nil && memory.Total >= 2_000_000_000, Info: "2 GB is the upstream minimum. Haven recommends at least 4 GB plus memory for every website and database."},
-		{Name: "Disk", OK: storage != nil && storage.Free >= 10_000_000_000, Info: "At least 10 GB free on the root filesystem. Check the space available under /data and allow extra space for websites and backups."},
-		{Name: "SSH", OK: hasCmd("sshd") && !portFree(22, "tcp"), Info: "Requires a running SSH server. Coolify needs SSH access to manage its local server."},
+		{Name: "Host", OK: isLinux() && os.Geteuid() == 0 && (runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64"), Info: "Requires a Linux amd64 or arm64 Haven server running as root.", Details: "The guided installer changes host services and supports only 64-bit Linux on Intel/AMD or ARM.", Fix: "Run Haven as root on a supported Linux server. On another platform, install Coolify separately and use Connect an existing installation."},
+		{Name: "CPU", OK: runtime.NumCPU() >= 2, Info: fmt.Sprintf("%d CPU cores detected; Coolify needs at least two.", runtime.NumCPU()), Details: "Coolify uses parallel containers for its control plane, proxy, builds and deployed applications.", Fix: "Increase the VM or server allocation to at least 2 CPU cores; 4 or more is recommended for builds."},
+		{Name: "Docker and Compose", OK: err == nil && composeErr == nil && dockerLoopbackSafe(v), Info: "Requires a working Docker Engine 28 or later and the Compose plugin.", Details: "Haven needs Docker 28+ for safe loopback-only website ports, and Coolify uses the Compose plugin to manage its services.", Fix: "Install or upgrade Docker Engine to version 28 or later, install the Docker Compose plugin, start Docker, then rerun the checks."},
+		{Name: "Memory", OK: memory != nil && memory.Total >= 2_000_000_000, Info: "2 GB is the upstream minimum. Haven recommends at least 4 GB plus memory for every website and database.", Details: "The minimum covers Coolify’s control services only; builds, websites and databases need additional memory.", Fix: "Increase the server or VM memory to at least 2 GB before installation. Use 4 GB or more for a practical deployment."},
+		{Name: "Disk", OK: storage != nil && storage.Free >= 10_000_000_000, Info: "At least 10 GB must be free on the root filesystem.", Details: "Coolify stores its control data under /data, while Docker images, build layers, databases and backups consume additional space.", Fix: "Free at least 10 GB on the root filesystem or enlarge the disk. Keep extra capacity for each website and its backups."},
+		{Name: "SSH", OK: hasCmd("sshd") && !portFree(22, "tcp"), Info: "Requires a running SSH server. Coolify needs SSH access to manage its local server.", Details: "Even on the same machine, Coolify connects through SSH to configure and deploy to its local server.", Fix: "Install and start OpenSSH Server, confirm TCP 22 is listening, then rerun the checks."},
 	}
 	if memory != nil {
 		low := memory.Available < 1_500_000_000
 		checks = append(checks, hostingCheck{Name: "Available memory", OK: true, Warning: low,
-			Info: fmt.Sprintf("%.1f GB is available now. Free at least 1.5 GB before installing; more is recommended for builds.", float64(memory.Available)/1e9)})
+			Info:    fmt.Sprintf("%.1f GB is available now. Free at least 1.5 GB before installing; more is recommended for builds.", float64(memory.Available)/1e9),
+			Details: "Total memory may meet the minimum while running services leave too little memory for a reliable installation.",
+			Fix:     "Stop memory-heavy workloads or increase the server memory, then rerun the checks when at least 1.5 GB is available."})
 	}
 	if swap != nil {
 		high := swap.Total > 0 && swap.UsedPercent >= 50
 		checks = append(checks, hostingCheck{Name: "Swap pressure", OK: true, Warning: high,
-			Info: fmt.Sprintf("Swap is %.0f%% used. Heavy swap can make Coolify setup and image pulls appear stuck.", swap.UsedPercent)})
+			Info:    fmt.Sprintf("Swap is %.0f%% used. Heavy swap can make Coolify setup and image pulls appear stuck.", swap.UsedPercent),
+			Details: "High swap use indicates memory pressure and can make container extraction, builds and database startup extremely slow.",
+			Fix:     "Stop memory-heavy workloads and wait for pressure to fall, or add memory. Do not disable swap only to clear this warning."})
 	}
 	if loadAvg != nil {
 		high := loadAvg.Load1 > float64(runtime.NumCPU()*2)
 		checks = append(checks, hostingCheck{Name: "Current system load", OK: true, Warning: high,
-			Info: fmt.Sprintf("One-minute load is %.1f across %d CPU cores. Wait for load to fall below %.0f before installation.", loadAvg.Load1, runtime.NumCPU(), float64(runtime.NumCPU()*2))})
+			Info:    fmt.Sprintf("One-minute load is %.1f across %d CPU cores. Wait for load to fall below %.0f before installation.", loadAvg.Load1, runtime.NumCPU(), float64(runtime.NumCPU()*2)),
+			Details: "A busy host can cause installer timeouts and make the first Coolify services fail their health checks.",
+			Fix:     "Wait for current jobs to finish or stop CPU-heavy workloads, then rerun the checks."})
 	}
 	_, installErr := os.Stat("/data/coolify/source/.env")
 	containers, _ := h.docker.ListContainers(ctx)
@@ -77,12 +86,16 @@ func (h *Hosting) setupChecks(ctx context.Context) []hostingCheck {
 		}
 	}
 	existingInfo := "No existing Coolify installation was detected."
+	existingDetails := "A second Coolify installation would conflict with the existing containers, networks and ports."
+	existingFix := "Use Connect an existing installation if Coolify is running."
 	if installed && !running {
 		existingInfo = "A partial Coolify installation was found. Review it, then use Resume installation to rerun the pinned installer safely."
+		existingFix = "Review the other checks, then choose Review installation recovery to resume without deleting Coolify data."
 	} else if running {
 		existingInfo = "Connect the existing running installation in Hosting instead of installing another copy."
 	}
-	checks = append(checks, hostingCheck{Name: "Existing Coolify", OK: !installed, Recoverable: installed && !running, Info: existingInfo})
+	checks = append(checks, hostingCheck{Name: "Existing Coolify", OK: !installed, Recoverable: installed && !running, Info: existingInfo, Details: existingDetails, Fix: existingFix})
+	havenPort80 := h.store.Settings().Port80
 	for _, port := range []int{80, 443, 6001, 6002, 8000} {
 		free := portFree(port, "tcp")
 		coolifyOwnsPort := false
@@ -92,14 +105,34 @@ func (h *Hosting) setupChecks(ctx context.Context) []hostingCheck {
 				break
 			}
 		}
-		check := hostingCheck{Name: fmt.Sprintf("TCP %d", port), OK: free, Info: "Must be available for a new Coolify installation."}
-		if !free && installed && !running && coolifyOwnsPort {
-			check.Recoverable = true
-			check.Info = "This port belongs to the partial Coolify stack and can be reused during recovery."
-		}
-		checks = append(checks, check)
+		checks = append(checks, hostingPortCheck(port, free, havenPort80, installed && !running && coolifyOwnsPort))
 	}
 	return checks
+}
+
+func hostingPortCheck(port int, free, havenPort80, coolifyRecoverable bool) hostingCheck {
+	check := hostingCheck{
+		Name: fmt.Sprintf("TCP %d", port), OK: free, Info: "Must be available for a new Coolify installation.",
+		Details: fmt.Sprintf("Coolify needs exclusive access to TCP %d for its proxy or control services.", port),
+		Fix:     fmt.Sprintf("Find the listener with `sudo ss -ltnp '( sport = :%d )'`, then stop or reconfigure that service before rerunning the checks.", port),
+	}
+	if free {
+		return check
+	}
+	if port == 80 && havenPort80 {
+		check.Info = "Haven is configured to answer on port 80. Continue on Haven’s main port, then turn off the extra listener for Coolify."
+		check.Details = "Coolify’s public proxy must own port 80. Turning off Haven’s extra listener does not stop Haven on its main port."
+		check.Fix = "Continue to Haven’s main port using the action below, rerun the checks there, then turn off Haven on port 80."
+		check.Action = "disable-haven-port-80"
+		return check
+	}
+	if coolifyRecoverable {
+		check.Recoverable = true
+		check.Info = "This port belongs to the partial Coolify stack and can be reused during recovery."
+		check.Details = "The existing partial installation already owns this port, so it does not block resuming that same installation."
+		check.Fix = "Use Review installation recovery. Do not stop the partial Coolify containers unless recovery fails and you have reviewed their data."
+	}
+	return check
 }
 
 func dockerLoopbackSafe(version string) bool {
