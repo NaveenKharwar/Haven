@@ -83,6 +83,17 @@ func (c cloudflareHostingClient) discoverZone(ctx context.Context, domain string
 	return hostingCloudflare{Account: zones[0].Account.ID, Zone: zones[0].ID, Name: zones[0].Name}, nil
 }
 
+func (c cloudflareHostingClient) checkPublishingAccess(ctx context.Context) error {
+	var tunnels []hostingTunnel
+	if err := c.call(ctx, http.MethodGet, c.tunnelPath("")+"?is_deleted=false&per_page=1", nil, &tunnels); err != nil {
+		return errors.New("Cloudflare could not verify Tunnel access. Give the token Cloudflare Tunnel Edit for the discovered account.")
+	}
+	if _, err := c.dnsRecords(ctx, c.config.Name); err != nil {
+		return errors.New("Cloudflare could not verify DNS access. Give the token DNS Edit for the discovered zone.")
+	}
+	return nil
+}
+
 type hostingTunnel struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`

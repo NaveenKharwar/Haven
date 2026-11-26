@@ -360,6 +360,7 @@ export type HostingSite = {
   publication?: HostingPublication
 }
 export type HostingState = { enabled: boolean; version: string; coolify: HostingConnection; cloudflare: { account: string; zone: string; name: string }; sites: HostingSite[] }
+export type HostingCloudflare = HostingState['cloudflare']
 export type HostingTemplate = { id: string; name: string; description: string; guided: boolean }
 export type HostingReview = { id: string; site: string; expiry: string; plan: HostingPublication }
 export type HostingHealth = { deployment?: string; local?: string; route?: string; connector?: string; dns?: string; https?: string; certificate?: string; verified: boolean }
@@ -372,6 +373,7 @@ export const hostingApi = {
   catalog: () => request<{ entries: HostingTemplate[]; complete: boolean }>('GET', '/api/hosting/catalog'),
   discover: (connection: HostingConnection, token: string) => request<HostingDiscovery>('POST', '/api/hosting/discover', { ...connection, token }),
   connect: (connection: HostingConnection, token: string) => request('POST', '/api/hosting/connect', { ...connection, token }),
+  checkCloudflare: (domain: string, token: string) => request<HostingCloudflare>('POST', '/api/hosting/cloudflare/check', { domain, token }),
   cloudflare: (domain: string, token: string) => request('POST', '/api/hosting/cloudflare', { domain, token }),
   install: (id: string, name: string, staticHtml = '') => request<HostingJob>('POST', '/api/hosting/sites', { template: id, name, staticHtml, confirm: true }),
   retry: (id: string) => request<HostingJob>('POST', `/api/hosting/sites/${q(id)}/retry`, { confirm: true }),

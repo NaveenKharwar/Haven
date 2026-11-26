@@ -71,7 +71,7 @@ On the target server, use **Apps → Restore backup** and enter the path to the 
 
 ## Website hosting
 
-Haven has an **experimental, opt-in** Coolify integration for deploying private WordPress, Ghost and Static HTML sites and explicitly publishing them over HTTPS. Cloudflare Tunnel has been verified; direct public HTTPS remains unverified. Start with the [beginner-friendly website hosting guide](docs/WEBSITE_HOSTING_GUIDE.md), check the [verification checklist](docs/HOSTING_TESTING.md), and use the [technical setup and recovery guide](docs/HOSTING.md) for details.
+Haven has an **experimental, opt-in** Coolify integration for deploying private WordPress, Ghost and Static HTML sites and explicitly publishing them over HTTPS. Cloudflare Tunnel has been verified; direct public HTTPS remains unverified. Run `sudo haven experimental` on the server to list experimental features, see their current state, and toggle Hosting. Start with the [beginner-friendly website hosting guide](docs/WEBSITE_HOSTING_GUIDE.md), check the [verification checklist](docs/HOSTING_TESTING.md), and use the [technical setup and recovery guide](docs/HOSTING.md) for details.
 
 ## Security
 

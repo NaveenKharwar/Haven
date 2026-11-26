@@ -1,4 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { BookOpen, Eye, EyeOff } from 'lucide-react'
+import { repoUrl } from './about'
 import {
   hostingApi, type HostingConnection, type HostingDiscovery, type HostingHealth, type HostingResource,
   type HostingReview, type HostingSite, type HostingState, type HostingTemplate,
@@ -20,6 +22,21 @@ function Plate({ title, tools, children }: { title: string; tools?: ReactNode; c
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="grid min-w-0 gap-1.5 text-sm"><span>{label}</span>{children}</label>
+}
+
+function TokenField({ id, label, value, change }: { id: string; label: string; value: string; change: (value: string) => void }) {
+  const [show, setShow] = useState(false)
+  return (
+    <div className="grid min-w-0 gap-1.5 text-sm">
+      <label htmlFor={id}>{label}</label>
+      <div className="relative">
+        <input id={id} className="field w-full pr-10" type={show ? 'text' : 'password'} required autoComplete="off" value={value} onChange={(e) => change(e.target.value)} />
+        <button type="button" className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted hover:text-ink" onClick={() => setShow((visible) => !visible)} aria-label={show ? 'Hide token' : 'Show token'} aria-pressed={show}>
+          {show ? <EyeOff size={15} aria-hidden /> : <Eye size={15} aria-hidden />}
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function PickResource({ label, value, options, change, optional }: {
@@ -61,12 +78,26 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
   const [checks, setChecks] = useState<Awaited<ReturnType<typeof hostingApi.preflight>>>()
   const [install, setInstall] = useState(false)
   const [recover, setRecover] = useState(false)
-  const [edit, setEdit] = useState(!state.coolify.url)
+  const [edit, setEdit] = useState(false)
   const { busy, error, run } = useHostingAction()
   const set = (key: keyof HostingConnection, value: string) => setConnection((prev) => ({ ...prev, [key]: value }))
-  const discover = () => run(() => hostingApi.discover(connection, token), setFound)
+  const discover = () => run(() => hostingApi.discover(connection, token), (result) => {
+    setFound(result)
+    setConnection((prev) => ({
+      ...prev,
+      server: prev.server || (result.servers.length === 1 ? result.servers[0].uuid : ''),
+      project: prev.project || (result.projects.length === 1 ? result.projects[0].uuid : ''),
+      environment: prev.environment || (result.environments?.length === 1 ? result.environments[0].uuid : ''),
+      destination: prev.destination || (result.destinations?.length === 1 ? result.destinations[0].uuid : ''),
+    }))
+  })
+  const resourcesReady = Boolean(found && found.environments !== null)
   const submit = (e: FormEvent) => {
     e.preventDefault()
+    if (!resourcesReady) {
+      discover()
+      return
+    }
     void run(() => hostingApi.connect(connection, token), () => {
       setToken('')
       setFound(undefined)
@@ -74,9 +105,16 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
       refresh()
     })
   }
+  const closeConnection = () => {
+    setToken('')
+    setFound(undefined)
+    setEdit(false)
+  }
 
   return (
-    <Plate title="Coolify" tools={state.coolify.url && <button className="key key-sm" onClick={() => setEdit(!edit)}>{edit ? 'Close' : 'Connection settings'}</button>}>
+    <Plate title="Coolify" tools={edit
+      ? <button className="key key-sm" type="button" onClick={closeConnection}>{state.coolify.url ? 'Close' : 'Back'}</button>
+      : state.coolify.url && <button className="key key-sm" type="button" onClick={() => setEdit(true)}>Connection settings</button>}>
       <div className="space-y-4 p-4 sm:p-5">
         {state.coolify.url && <>
           <p className="flex min-w-0 items-center gap-2 text-sm"><Led s="ok" /> <span className="break-all">{state.coolify.url}</span></p>
@@ -90,30 +128,64 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
         </>}
         {edit && (
           <form className="space-y-4" onSubmit={submit}>
-            <p className="text-sm text-ink-2">Connect Coolify {state.version} and select its local server. Enable API access in Coolify and use a team token with read, write and deploy permissions.</p>
+            {!state.coolify.url && <div className="max-w-2xl space-y-1">
+              <h3 className="text-base font-semibold">Connect Coolify</h3>
+              <p className="text-sm text-ink-2">Use a team token with Read, Write and Deploy permissions.</p>
+            </div>}
             <Field label="Dashboard URL"><input className="field w-full" type="url" required value={connection.url} onChange={(e) => { set('url', e.target.value); setFound(undefined) }} /></Field>
-            <Field label="Coolify API token"><input className="field w-full" type="password" required autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} /></Field>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <PickResource label="Server UUID" value={connection.server} options={found?.servers} change={(v) => set('server', v)} />
-              <PickResource label="Project UUID" value={connection.project} options={found?.projects} change={(v) => set('project', v)} />
-              <PickResource label="Environment UUID" value={connection.environment} options={found?.environments} change={(v) => set('environment', v)} />
-              <PickResource label="Destination UUID (optional)" value={connection.destination || ''} options={found?.destinations} change={(v) => set('destination', v)} optional />
-            </div>
-            {found && <p className="text-sm text-muted">Coolify reports {found.version}. Select a project and server, then load resources again to see their environments and destinations.</p>}
+            <TokenField id="coolify-api-token" label="Coolify API token" value={token} change={setToken} />
+            {found && <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <PickResource label="Server UUID" value={connection.server} options={found.servers} change={(v) => {
+                  setConnection((prev) => ({ ...prev, server: v, destination: '' }))
+                  setFound((prev) => prev ? { ...prev, destinations: null } : prev)
+                }} />
+                <PickResource label="Project UUID" value={connection.project} options={found.projects} change={(v) => {
+                  setConnection((prev) => ({ ...prev, project: v, environment: '' }))
+                  setFound((prev) => prev ? { ...prev, environments: null } : prev)
+                }} />
+                {found.environments !== null && <PickResource label="Environment UUID" value={connection.environment} options={found.environments} change={(v) => set('environment', v)} />}
+                {found.destinations !== null && <PickResource label="Destination UUID (optional)" value={connection.destination || ''} options={found.destinations} change={(v) => set('destination', v)} optional />}
+              </div>
+              <p className="text-sm text-muted">{resourcesReady
+                ? `Coolify ${found.version} resources are ready to save.`
+                : `Coolify ${found.version} responded. Choose a server and project, then reload.`}</p>
+            </>}
             <div className="flex flex-wrap gap-2">
-              <button className="key" type="button" disabled={busy || !connection.url || !token} onClick={discover}>Load resources</button>
-              <button className="key key-primary" disabled={busy} data-loading={busy}>Save connection</button>
+              <button className={found ? 'key' : 'key key-primary'} type="button" disabled={busy || !connection.url || !token} data-loading={busy && !resourcesReady} onClick={discover}>{found ? 'Reload resources' : 'Load resources'}</button>
+              {resourcesReady && <button className="key key-primary" disabled={busy} data-loading={busy}>Save connection</button>}
             </div>
           </form>
         )}
-        {!state.coolify.url && (
-          <div className="space-y-3 border-t border-rule pt-4">
-            <p className="text-sm text-ink-2">New to Coolify? Check whether this server can run the pinned release. Keep the dashboard and ports 8000, 6001 and 6002 private during setup.</p>
-            <button className="key" type="button" disabled={busy} onClick={() => void run(hostingApi.preflight, setChecks)}>Run install checks</button>
+        {!state.coolify.url && !edit && (
+          <div className="space-y-5">
+            <div className="max-w-2xl space-y-1">
+              <p className="flex items-center gap-2 text-sm"><Led s="off" /> Coolify is not connected</p>
+              <h3 className="text-lg font-semibold">Choose a Coolify setup</h3>
+            </div>
+            <div className="divide-y divide-rule border-y border-rule sm:grid sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+              <div className="flex h-full flex-col gap-3 py-4 sm:pr-5">
+                <div className="space-y-1">
+                  <h4 className="font-semibold">Install on this server</h4>
+                  <p className="text-sm text-ink-2">Check this server, then install the supported release.</p>
+                </div>
+                <div className="mt-auto pt-1"><button className="key key-primary" type="button" disabled={busy} data-loading={busy} onClick={() => void run(hostingApi.preflight, setChecks)}>{checks ? 'Run checks again' : 'Run install checks'}</button></div>
+              </div>
+              <div className="flex h-full flex-col gap-3 py-4 sm:pl-5">
+                <div className="space-y-1">
+                  <h4 className="font-semibold">Connect an existing installation</h4>
+                  <p className="text-sm text-ink-2">Connect with its dashboard URL and API token.</p>
+                </div>
+                <div className="mt-auto pt-1"><button className="key" type="button" disabled={busy} onClick={() => setEdit(true)}>Connect existing Coolify</button></div>
+              </div>
+            </div>
             {checks && (
-              <>
-                <ul className="divide-y divide-rule">
-                  {checks.map((c) => {
+              <div className="space-y-3">
+                <ul className="h-80 divide-y divide-rule overflow-y-auto overscroll-contain pr-2" tabIndex={0} aria-label="Coolify installation checks">
+                  {[...checks].sort((a, b) => {
+                    const priority = (c: typeof a) => !c.ok && !c.warning && !c.recoverable ? 0 : c.warning || c.recoverable ? 1 : 2
+                    return priority(a) - priority(b)
+                  }).map((c) => {
                     const state = c.warning || c.recoverable ? 'warn' : c.ok ? 'ok' : 'bad'
                     const label = c.warning ? 'Warning' : c.recoverable ? 'Can resume' : c.ok ? 'Passed' : 'Blocked'
                     return <li key={c.name} className="flex items-start gap-2 py-2 text-sm"><span className="mt-1"><Led s={state} label={label} /></span><div><strong>{c.name}</strong><p className="text-muted">{c.info}</p></div></li>
@@ -121,16 +193,16 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
                 </ul>
                 {checks.every((c) => c.ok) && <button className="key" onClick={() => { setRecover(false); setInstall(true) }}>Review Coolify installation</button>}
                 {checks.some((c) => c.recoverable) && checks.every((c) => c.ok || c.recoverable) && <button className="key" onClick={() => { setRecover(true); setInstall(true) }}>Review installation recovery</button>}
-              </>
+              </div>
             )}
           </div>
         )}
         <ErrorLine>{error}</ErrorLine>
       </div>
       <Modal open={install} onClose={() => !busy && setInstall(false)} title="Install Coolify" footer={
-        <button className="key key-primary" disabled={busy} onClick={() => void run(() => hostingApi.setup(recover), ({ jobId }) => { setInstall(false); openJob(jobId, recover ? 'Resume Coolify installation' : 'Install Coolify') })}>{recover ? 'Resume installation' : `Install Coolify ${state.version}`}</button>
+        <button className="key key-primary" disabled={busy} onClick={() => void run(() => hostingApi.setup(recover), ({ jobId }) => { setInstall(false); setEdit(true); openJob(jobId, recover ? 'Resume Coolify installation' : 'Install Coolify') })}>{recover ? 'Resume installation' : `Install Coolify ${state.version}`}</button>
       }>
-        <p className="text-sm">{recover ? 'Haven will rerun the same pinned installer over the partial setup. Existing Coolify data is preserved.' : 'The Coolify installer starts platform containers and configures local SSH access for deployments. Finish initial account setup over your LAN or an SSH port forward.'}</p>
+        <p className="text-sm">{recover ? 'Resume the supported installer without deleting existing Coolify data.' : 'Install the supported Coolify release and configure local deployments.'}</p>
         <ErrorLine>{error}</ErrorLine>
       </Modal>
     </Plate>
@@ -140,23 +212,39 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
 function CloudflareSetup({ state, refresh }: { state: HostingState; refresh: () => void }) {
   const [domain, setDomain] = useState(state.cloudflare.name)
   const [token, setToken] = useState('')
+  const [checked, setChecked] = useState<Awaited<ReturnType<typeof hostingApi.checkCloudflare>>>()
   const [edit, setEdit] = useState(false)
   const { busy, error, run } = useHostingAction()
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    void run(() => hostingApi.cloudflare(domain, token), () => { setToken(''); setEdit(false); refresh() })
+    if (!checked) return
+    void run(() => hostingApi.cloudflare(domain, token), () => { setToken(''); setChecked(undefined); setEdit(false); refresh() })
+  }
+  const closeConnection = () => {
+    setDomain(state.cloudflare.name)
+    setToken('')
+    setChecked(undefined)
+    setEdit(false)
   }
   return (
-    <Plate title="Cloudflare" tools={<button className="key key-sm" onClick={() => setEdit(!edit)}>{edit ? 'Close' : state.cloudflare.name ? 'Connection settings' : 'Connect Cloudflare'}</button>}>
+    <Plate title="Cloudflare" tools={edit
+      ? <button className="key key-sm" type="button" onClick={closeConnection}>{state.cloudflare.name ? 'Close' : 'Back'}</button>
+      : state.cloudflare.name && <button className="key key-sm" type="button" onClick={() => setEdit(true)}>Connection settings</button>}>
       <div className="space-y-4 p-4 sm:p-5">
         {state.cloudflare.name ? <p className="flex items-center gap-2 text-sm"><Led s="ok" /> <span className="break-all">{state.cloudflare.name}</span></p>
-          : <p className="text-sm text-ink-2">Connect an active zone to publish through Cloudflare Tunnel or manage DNS for direct publishing.</p>}
+          : !edit && <div className="space-y-3">
+            <p className="text-sm text-ink-2">Connect Cloudflare for Tunnel publishing or managed DNS.</p>
+            <button className="key" type="button" onClick={() => setEdit(true)}>Connect Cloudflare</button>
+          </div>}
         {edit && (
           <form className="space-y-3" onSubmit={submit}>
-            <p className="text-sm text-ink-2">Enter the root domain. Haven finds its account and zone automatically. Scope the token to that account and zone with Cloudflare Tunnel Edit, Zone Read and DNS Edit.</p>
-            <Field label="Root domain"><input className="field w-full" required placeholder="example.com" value={domain} onChange={(e) => setDomain(e.target.value)} autoCapitalize="none" spellCheck={false} /></Field>
-            <Field label="Cloudflare API token"><input className="field w-full" type="password" required value={token} autoComplete="off" onChange={(e) => setToken(e.target.value)} /></Field>
-            <button className="key key-primary" disabled={busy} data-loading={busy}>Save Cloudflare connection</button>
+            <p className="text-sm text-ink-2">Haven checks the active zone, DNS and Tunnel access before saving. Token permissions: Tunnel Edit, Zone Read and DNS Edit.</p>
+            <Field label="Root domain"><input className="field w-full" required placeholder="example.com" value={domain} onChange={(e) => { setDomain(e.target.value); setChecked(undefined) }} autoCapitalize="none" spellCheck={false} /></Field>
+            <TokenField id="cloudflare-api-token" label="Cloudflare API token" value={token} change={(value) => { setToken(value); setChecked(undefined) }} />
+            {checked && <p className="flex items-center gap-2 text-sm"><Led s="ok" /><span>Verified <strong>{checked.name}</strong>: active zone, DNS and Tunnel access.</span></p>}
+            {checked
+              ? <button className="key key-primary" disabled={busy} data-loading={busy}>Save Cloudflare connection</button>
+              : <button className="key key-primary" type="button" disabled={busy || !domain || !token} data-loading={busy} onClick={() => void run(() => hostingApi.checkCloudflare(domain, token), setChecked)}>Check Cloudflare access</button>}
             <ErrorLine>{error}</ErrorLine>
           </form>
         )}
@@ -195,7 +283,7 @@ function HostingCatalog({ dashboard, refresh }: { dashboard: string; refresh: ()
       <div className="space-y-3 p-4 sm:p-5">
         <div className="well p-3 text-sm">
           <p className="font-medium">Deploy modern frameworks through Coolify</p>
-          <p className="mt-1 text-ink-2">React, Next.js, Vue, Nuxt, SvelteKit, Astro and other frameworks can deploy from Git with automatic builds. Docker images and advanced Compose stacks are supported too.</p>
+          <p className="mt-1 text-ink-2">Open Coolify for Git, Docker image or Compose deployments.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <CoolifyLink dashboard={dashboard} />
             <span className="tag">Git repository</span><span className="tag">Docker image</span><span className="tag">Docker Compose</span>
@@ -225,7 +313,7 @@ function HostingCatalog({ dashboard, refresh }: { dashboard: string; refresh: ()
         <button className="key key-primary" form="private-hosting-install" disabled={busy || !name.trim()} data-loading={busy}>Confirm private install</button>
       }>
         <form id="private-hosting-install" className="space-y-4" onSubmit={submit}>
-          <p className="text-sm">{selected?.id === 'static-html' ? 'Haven will serve this HTML through Nginx. Private access uses an SSH port forward, and publishing remains a separate reviewed step.' : 'Coolify will deploy this website and its database. Private access uses an SSH port forward. Publishing is a separate step.'}</p>
+          <p className="text-sm">Install privately now. Publishing remains a separate, reviewed action.</p>
           <Field label="Website name"><input className="field w-full" required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} /></Field>
           {selected?.id === 'static-html' && <Field label="Homepage HTML"><textarea className="field min-h-64 w-full font-mono text-xs" required maxLength={262144} value={staticHtml} onChange={(e) => setStaticHtml(e.target.value)} spellCheck={false} /></Field>}
           <ErrorLine>{error}</ErrorLine>
@@ -270,9 +358,9 @@ function PublishDialog({ site, cloudflare, onClose, refresh }: { site: HostingSi
           <>
             <p>Publish <strong>{site.name}</strong> at <strong className="break-all">https://{plan.host}</strong> using {plan.mode === 'tunnel' ? 'Cloudflare Tunnel' : 'the Coolify proxy'}.</p>
             <div className="well space-y-2 p-3">
-              <p>{plan.mode === 'tunnel' ? 'Haven will add one exact hostname route and a proxied Cloudflare DNS record. Cloudflare serves the visitor certificate.' :
-                (plan.dns === 'cloudflare' ? 'Haven will create a DNS-only A record at ' : 'Create an A record at your DNS provider pointing to ') + plan.address + '. Coolify requests the HTTPS certificate.'}</p>
-              <p>Publishing changes the site’s canonical URL. Back up established content and use an application-aware migration when changing domains.</p>
+              <p>{plan.mode === 'tunnel' ? 'Creates one exact Tunnel route and proxied DNS record.' :
+                (plan.dns === 'cloudflare' ? 'Creates a DNS-only A record at ' : 'Create an A record pointing to ') + plan.address + '.'}</p>
+              <p>This changes the site’s canonical URL. Back up established content first.</p>
             </div>
           </>
         ) : (
@@ -300,7 +388,7 @@ function PublishDialog({ site, cloudflare, onClose, refresh }: { site: HostingSi
                 {!existing && <>
                   <Field label="Router WAN IPv4 (optional)"><input className="field w-full" value={wan} onChange={(e) => setWan(e.target.value)} inputMode="decimal" /></Field>
                   <Notice label="Router and proxy">
-                    Check Coolify’s proxy before adding a router forward. TCP 80 and 443 will carry every configured public route on that proxy. Keep both dashboards, other apps and database ports private. Haven can compare your router’s WAN IPv4 with its observed IPv4. Inbound reachability needs a separate test.
+                    TCP 80 and 443 expose every route on Coolify’s proxy. Keep dashboards, private apps and databases off those ports.
                   </Notice>
                   <label className="flex items-start gap-2"><input className="mt-1" type="checkbox" required checked={proxySafe} onChange={(e) => setProxySafe(e.target.checked)} /> I reviewed the proxy routes and only intended public websites use these ports.</label>
                 </>}
@@ -342,7 +430,7 @@ function SiteRow({ site, state, refresh }: { site: HostingSite; state: HostingSt
         <details className="text-sm">
           <summary className="cursor-pointer text-ink-2">Open privately with SSH</summary>
           <div className="well mt-2 space-y-2 p-3">
-            <p>From your computer, forward the website’s loopback port. Replace the SSH user and server address if needed.</p>
+            <p>Run from your computer, replacing the SSH user and server address:</p>
             <code className="block break-all text-xs">ssh -N -L {site.privatePort}:127.0.0.1:{site.privatePort} YOUR_SSH_USER@{localHost}</code>
             <a className="underline underline-offset-2" href={privateURL} target="_blank" rel="noreferrer">{privateURL}</a>
           </div>
@@ -351,7 +439,7 @@ function SiteRow({ site, state, refresh }: { site: HostingSite; state: HostingSt
       {p?.mode === 'direct' && p.phase === 'configured' && (
         <div className="well space-y-2 p-3 text-sm">
           {p.dns === 'manual' && <p>Create a DNS-only A record for <strong className="break-all">{p.host}</strong> pointing to <strong>{p.address}</strong>. Remove that record yourself if you unpublish.</p>}
-          <p>After reviewing the proxy routes, forward TCP 80 and 443 to the Coolify server in your router. Check this site from mobile data with Wi-Fi and Tailscale off. Coolify uses the public route to obtain and renew its HTTPS certificate. Review its proxy logs if certificate issuance stalls.</p>
+          <p>Forward TCP 80 and 443 to Coolify, then test from another network. Check Coolify’s proxy logs if HTTPS fails.</p>
           {p.external ? <p className="text-ink-2">External access checked by an admin.</p> : <button className="key key-sm" onClick={() => setConfirm('external')}>Confirm external access</button>}
           {p.ipError && <ErrorLine>{p.ipError}</ErrorLine>}
         </div>
@@ -392,21 +480,26 @@ function SiteRow({ site, state, refresh }: { site: HostingSite; state: HostingSt
 }
 
 export default function HostingPage() {
+  const { repo } = useHaven()
   const { data: state, error, refresh } = usePoll(hostingApi.status, 5000)
+  const guide = repoUrl(repo, '/blob/main/docs/WEBSITE_HOSTING_GUIDE.md') || 'https://github.com/NaveenKharwar/Haven/blob/main/docs/WEBSITE_HOSTING_GUIDE.md'
   return (
     <div className="space-y-6">
-      <header>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">Website and app hosting</h1>
-          <span className="tag tag-warn">Experimental</span>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">Website and App Hosting</h1>
+            <span className="tag tag-warn">Experimental</span>
+          </div>
+          <p className="mt-1 max-w-3xl text-sm text-muted">Install private sites with Coolify and publish them when ready.</p>
         </div>
-        <p className="mt-1 max-w-3xl text-sm text-muted">Deploy sites and modern applications with Coolify, then choose exactly when to make them public. This feature is still being tested and may change as homelab issues are discovered.</p>
+        <a className="key shrink-0 gap-2" href={guide} target="_blank" rel="noreferrer noopener"><BookOpen size={15} aria-hidden /> Beginner guide</a>
       </header>
       <ErrorLine>{error}</ErrorLine>
       {!state && !error && <Spinner />}
       {state && (
         <>
-          {!state.enabled && <Notice label="Hosting is off">This integration is experimental. Set <code className="break-all">HAVEN_HOSTING_EXPERIMENTAL=1</code> on the Haven service and restart it to enable setup and publishing.</Notice>}
+          {!state.enabled && <Notice label="Hosting is off">Run <code className="break-all">sudo haven experimental</code> on the server and enable Website and App Hosting.</Notice>}
           {state.enabled && (
             <Sections>
               <CoolifySetup state={state} refresh={refresh} />
