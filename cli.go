@@ -233,10 +233,10 @@ func newServeCommand(serve serverRunner) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "serve",
 		Short:   "Run the Haven server in the foreground",
-		Long:    "Run Haven in the foreground. Normal installations already run Haven through systemd; use journalctl to inspect that service instead of starting a second copy.",
+		Long:    "Run Haven in the foreground. Normal installations already run Haven through systemd; use `sudo haven logs --follow` to inspect that service instead of starting a second copy.",
 		GroupID: "run",
 		Args:    cobra.NoArgs,
-		Example: "  haven serve --addr :8484 --data /opt/haven\n  sudo journalctl -u haven -f",
+		Example: "  haven serve --addr :8484 --data /opt/haven\n  sudo haven logs --follow",
 		Run: func(*cobra.Command, []string) {
 			serve(addr, dataDir)
 		},
