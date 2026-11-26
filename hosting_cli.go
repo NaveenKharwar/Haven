@@ -88,9 +88,12 @@ func runExperimentalMenu(in io.Reader, out io.Writer, path string, run systemctl
 	if enabled {
 		state = "enabled"
 	}
-	fmt.Fprintln(out, "Haven experimental features")
+	style := cliStyle{color: cliColor(out)}
+	fmt.Fprintln(out, style.accent(style.bold("HAVEN EXPERIMENTAL")))
+	fmt.Fprintln(out, "Opt-in features may change before general release.")
 	fmt.Fprintln(out)
-	fmt.Fprintf(out, "  1. Website and App Hosting [%s]\n", state)
+	fmt.Fprintln(out, style.bold("FEATURES"))
+	fmt.Fprintf(out, "  1  Website and App Hosting [%s]\n", state)
 	fmt.Fprintln(out)
 	fmt.Fprint(out, "Select a feature to manage (1, or q to quit): ")
 	scanner := bufio.NewScanner(in)

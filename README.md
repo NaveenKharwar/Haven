@@ -73,6 +73,10 @@ On the target server, use **Apps → Restore backup** and enter the path to the 
 
 Haven has an **experimental, opt-in** Coolify integration for deploying private WordPress, Ghost and Static HTML sites and explicitly publishing them over HTTPS. Cloudflare Tunnel has been verified; direct public HTTPS remains unverified. Run `sudo haven experimental` on the server to list experimental features, see their current state, and toggle Hosting. Start with the [beginner-friendly website hosting guide](docs/WEBSITE_HOSTING_GUIDE.md), check the [verification checklist](docs/HOSTING_TESTING.md), and use the [technical setup and recovery guide](docs/HOSTING.md) for details.
 
+## Command line
+
+Run `haven` to see the available commands. Installed servers are managed through systemd, so use `sudo haven start`, `sudo haven stop` or `sudo haven restart`; inspect them with `haven status` and `haven logs --follow`. Use `haven serve` only when intentionally running Haven in the foreground. List and manage experimental features with `sudo haven experimental`. Haven can also generate completion scripts for Bash, Zsh, Fish and PowerShell with `haven completion <shell>`.
+
 ## Security
 
 Haven runs as root, so treat it like the keys to your server.
@@ -86,7 +90,7 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Where things live
 
-- The program is `/usr/local/bin/haven`, run by systemd as `haven.service`. Logs: `journalctl -u haven`.
+- The program is `/usr/local/bin/haven`, run by systemd as `haven.service`. Logs: `haven logs` or `journalctl -u haven`.
 - Each app is a folder, `/opt/haven/apps/<id>/`, holding `compose.yml` and `.env`. Its data is in `/opt/haven/appdata/<id>/`.
 - Haven's own state is a few small JSON files in `/opt/haven`.
 - **Password reset:** Click **Forgot password?** on the sign-in screen, or run `sudo haven reset-password <user>` (or `sudo haven reset-token`) on the server.
