@@ -30,6 +30,17 @@ func cloudflareTestResponse(result any) map[string]any {
 	return map[string]any{"success": true, "result": result}
 }
 
+func TestHostingPortCheckGuidesHavenPort80Recovery(t *testing.T) {
+	check := hostingPortCheck(80, false, true, false)
+	if check.OK || check.Action != "disable-haven-port-80" || !strings.Contains(check.Info, "Haven is configured") || check.Details == "" || check.Fix == "" {
+		t.Fatalf("unexpected Haven port 80 check: %+v", check)
+	}
+	check = hostingPortCheck(443, false, true, true)
+	if !check.Recoverable || check.Action != "" {
+		t.Fatalf("unexpected partial Coolify port check: %+v", check)
+	}
+}
+
 func TestHostingPrivateCoolifyInstallContract(t *testing.T) {
 	for _, template := range hostingTemplates {
 		t.Run(template.ID, func(t *testing.T) {

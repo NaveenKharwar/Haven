@@ -368,7 +368,7 @@ type HostingJob = { jobId: string }
 
 export const hostingApi = {
   status: () => request<HostingState>('GET', '/api/hosting'),
-  preflight: () => request<{ name: string; ok: boolean; warning?: boolean; recoverable?: boolean; info: string }[]>('GET', '/api/hosting/preflight'),
+  preflight: () => request<{ name: string; ok: boolean; warning?: boolean; recoverable?: boolean; info: string; details?: string; fix?: string; action?: 'disable-haven-port-80' }[]>('GET', '/api/hosting/preflight'),
   setup: (recover = false) => request<HostingJob>('POST', '/api/hosting/setup', { confirm: true, recover }),
   catalog: () => request<{ entries: HostingTemplate[]; complete: boolean }>('GET', '/api/hosting/catalog'),
   discover: (connection: HostingConnection, token: string) => request<HostingDiscovery>('POST', '/api/hosting/discover', { ...connection, token }),

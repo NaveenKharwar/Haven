@@ -40,15 +40,19 @@ On a new server, choose **Install on this server → Run install checks**. Use *
 Haven installs the supported Coolify version for you. You do not need to install it separately.
 
 1. Under **Coolify**, select **Run install checks**.
-2. Read each result. Haven places blocked checks and warnings first, with passed checks below them; scroll inside the results list to review everything. A red result blocks installation; an amber result warns about current capacity or identifies a partial installation. Fix blocked checks and reduce memory, swap or load pressure before continuing. For example, if Haven uses port 80, open **Server → Local address**, turn off **Also answer on port 80**, and return to Hosting. Ports 80, 443, 6001, 6002 and 8000 must be free for a new installation.
+2. Read each result. Haven places blocked checks and warnings first, with passed checks below them; scroll inside the results list to review everything. Expand **Show details and fix** on any red or amber result to understand the problem and its recovery steps. A red result blocks installation; an amber result warns about current capacity or identifies a partial installation. If Haven uses port 80, continue on Haven's main port and use the inline action to turn off its extra port 80 listener safely. Ports 80, 443, 6001, 6002 and 8000 must be free for a new installation.
+
+   ![Haven light-mode installation checks with a blocked port 80 result, expanded explanation and safe recovery action](images/hosting-check-fix-light.png)
+
+3. When all checks pass, Haven enables the review action.
 
    ![Haven installation checks in a fixed-height light-mode results list, with the review button highlighted](images/hosting-checks-light.png)
 
-3. When all checks pass, select **Review Coolify installation**. Read the confirmation: the installer starts platform containers and configures local SSH access for deployments.
+4. Select **Review Coolify installation**. Read the confirmation: the installer starts platform containers and configures local SSH access for deployments.
 
    ![Haven installation confirmation with Install Coolify highlighted](images/hosting-install-confirm.png)
 
-4. Select **Install Coolify**. Haven streams the installer progress and allows up to 30 minutes for slow image downloads. Do not close or restart the server during installation. If Haven detects files from an interrupted setup, rerun the checks and use **Review installation recovery → Resume installation**. It reruns the same pinned installer without deleting Coolify data.
+5. Select **Install Coolify**. Haven streams the installer progress and allows up to 30 minutes for slow image downloads. Do not close or restart the server during installation. If Haven detects files from an interrupted setup, rerun the checks and use **Review installation recovery → Resume installation**. It reruns the same pinned installer without deleting Coolify data.
 
 Keep ports 8000, 6001 and 6002 private; do not forward them on your router. Create the first Coolify account promptly, because anyone who can reach its registration page may be able to claim it.
 
