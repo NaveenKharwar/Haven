@@ -141,7 +141,7 @@ func newLogsCommand(out, errOut io.Writer) *cobra.Command {
 		Long:    "Show logs from the installed Haven systemd service instead of starting another server process.",
 		GroupID: "service",
 		Args:    cobra.NoArgs,
-		Example: "  haven logs\n  haven logs --lines 250\n  haven logs --follow",
+		Example: "  sudo haven logs\n  sudo haven logs --lines 250\n  sudo haven logs --follow",
 		RunE: func(*cobra.Command, []string) error {
 			return streamHavenServiceLogs(out, errOut, lines, follow)
 		},
@@ -330,7 +330,7 @@ func printCLIHelp(cmd *cobra.Command, style cliStyle) {
 	if cmd.Parent() == nil {
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Run `haven help <command>` for command details.")
-		fmt.Fprintln(out, "Haven already running? Use `sudo journalctl -u haven -f` for service logs.")
+		fmt.Fprintln(out, "Haven already running? Use `haven status` or `sudo haven logs --follow`.")
 	}
 }
 

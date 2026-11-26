@@ -75,7 +75,7 @@ Haven has an **experimental, opt-in** Coolify integration for deploying private 
 
 ## Command line
 
-Run `haven` to see the available commands. Installed servers are managed through systemd, so use `sudo haven start`, `sudo haven stop` or `sudo haven restart`; inspect them with `haven status` and `haven logs --follow`. Use `haven serve` only when intentionally running Haven in the foreground. List and manage experimental features with `sudo haven experimental`. Haven can also generate completion scripts for Bash, Zsh, Fish and PowerShell with `haven completion <shell>`.
+Run `haven` to see the available commands. Installed servers are managed through systemd, so use `sudo haven start`, `sudo haven stop` or `sudo haven restart`; inspect them with `haven status` and `sudo haven logs --follow`. Use `haven serve` only when intentionally running Haven in the foreground. List and manage experimental features with `sudo haven experimental`. Haven can also generate completion scripts for Bash, Zsh, Fish and PowerShell with `haven completion <shell>`.
 
 ## Security
 
@@ -90,7 +90,7 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Where things live
 
-- The program is `/usr/local/bin/haven`, run by systemd as `haven.service`. Logs: `haven logs` or `journalctl -u haven`.
+- The program is `/usr/local/bin/haven`, run by systemd as `haven.service`. Logs: `sudo haven logs` or `sudo journalctl -u haven`.
 - Each app is a folder, `/opt/haven/apps/<id>/`, holding `compose.yml` and `.env`. Its data is in `/opt/haven/appdata/<id>/`.
 - Haven's own state is a few small JSON files in `/opt/haven`.
 - **Password reset:** Click **Forgot password?** on the sign-in screen, or run `sudo haven reset-password <user>` (or `sudo haven reset-token`) on the server.

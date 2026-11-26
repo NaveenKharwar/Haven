@@ -20,7 +20,7 @@ func TestRootCommandShowsHelpInsteadOfServing(t *testing.T) {
 		t.Fatal("bare haven started the server")
 	}
 	text := out.String()
-	for _, expected := range []string{"SERVICE", "restart", "experimental", "serve", "Haven already running?"} {
+	for _, expected := range []string{"SERVICE", "restart", "experimental", "serve", "Haven already running?", "sudo haven logs --follow"} {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("help missing %q:\n%s", expected, text)
 		}
