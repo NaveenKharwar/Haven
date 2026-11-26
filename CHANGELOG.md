@@ -4,8 +4,10 @@ Each release's notes come from its section here. Add a `## <version>` section be
 
 ## Unreleased
 
+## 0.1.39
+
 - Clarified first-time Coolify setup by separating guided installation from existing connections, revealing connection resources only when needed, adding token visibility controls, and linking the beginner guide from Hosting.
-- Added an interactive `haven experimental` feature menu with safe Hosting toggles, direct automation commands, applied-state verification, and automatic configuration rollback on failure.
+- Added an interactive `haven experimental` feature menu with safe Hosting toggles, direct automation commands, applied-state verification, and complete service rollback on failure.
 - Added a read-only Cloudflare access check that verifies the active zone plus DNS and Tunnel access before credentials can be saved.
 
 ## 0.1.38
