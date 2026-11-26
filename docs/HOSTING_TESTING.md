@@ -13,7 +13,7 @@ Hosting is an experimental, administrator-only feature. This document records th
 | Ghost | Partial | Private deployment, owner setup, posts, and uploads were verified. Transactional email and a full data restore still require testing. |
 | Modern frameworks | Passed as a Coolify handoff | A React/Vite repository built and served privately through Coolify. Git, build-pack, Dockerfile, image, and advanced Compose resources remain managed by Coolify rather than Haven’s guided workflow. |
 | Cloudflare discovery | Passed | Haven discovered the exact active account and zone using a narrowly scoped token. |
-| Cloudflare Tunnel | Passed with limitation | Exact-hostname publication, trusted HTTPS, reboot recovery, and unpublish were verified. The complete publish/unpublish cycle still needs repeating with the documented narrow token. |
+| Cloudflare Tunnel | Passed with limitation | Exact-hostname publication, trusted HTTPS, reboot recovery, and unpublish were verified. The documented narrow token also passed the live API lifecycle and cleanup workflow. Public connector and HTTPS E2E automation remain outstanding. |
 | Direct HTTPS safeguards | Passed | Review binding, confirmation, DNS ownership, public-address validation, proxy checks, and Coolify automatic-DNS checks are covered. |
 | Direct public HTTPS | Unverified | The available test network is behind upstream NAT, so no end-to-end inbound HTTPS or direct certificate was claimed. No router or DNS change was made. |
 | Certificate renewal and public IP change | Unverified | Initial trusted HTTPS was verified for Tunnel publishing. A natural renewal cycle and managed direct-IP change were not completed. |
@@ -52,16 +52,16 @@ Provider tests use controlled stubs unless a row above explicitly says the behav
 
 | Capability | PR tests | Live API workflow | Public E2E workflow |
 | --- | --- | --- | --- |
-| Zone discovery | Covered with a provider stub | Manual workflow available | Not applicable |
-| Tunnel creation and configuration | Route validation covered with a provider stub | Manual workflow available | Not applicable |
-| DNS ownership and cleanup | Covered with a provider stub | Manual workflow available | Not applicable |
-| Conflict safeguards | Covered with a provider stub | Manual workflow available | Not applicable |
+| Zone discovery | Covered with a provider stub | Passed | Not applicable |
+| Tunnel creation and configuration | Route validation covered with a provider stub | Passed | Not applicable |
+| DNS ownership and cleanup | Covered with a provider stub | Passed | Not applicable |
+| Conflict safeguards | Covered with a provider stub | Passed | Not applicable |
 | Connector online | Not covered | Not covered | Planned |
 | Website reachable through Tunnel | Not covered | Not covered | Planned |
 | Trusted public HTTPS | Not covered | Not covered | Planned |
-| Unknown hostname returns 404 | Fallback configuration covered | Configuration check available | Planned response check |
+| Unknown hostname returns 404 | Fallback configuration covered | Configuration check passed | Planned response check |
 
-The live API workflow should verify real Cloudflare permissions, request and response compatibility, resource ownership, and cleanup without claiming public connectivity. The public E2E workflow is required before removing the experimental flag.
+The live API workflow verified real Cloudflare permissions, request and response compatibility, resource ownership, and cleanup without claiming public connectivity. The public E2E workflow is required before removing the experimental flag.
 
 ### Configure the live API workflow
 
