@@ -150,15 +150,35 @@ func configureHostingExperiment(path string, enable bool, run systemctlRunner) e
 		return fmt.Errorf("%s exists but is not managed by Haven; move it aside or update it manually", path)
 	}
 
-	restore := func() {
+	restore := func() error {
 		if existed {
-			_ = os.MkdirAll(filepath.Dir(path), 0o755)
-			_ = writeFileAtomic(path, previous, 0o644)
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				return err
+			}
+			if err := writeFileAtomic(path, previous, 0o644); err != nil {
+				return err
+			}
 		} else {
-			_ = os.Remove(path)
+			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
 			_ = os.Remove(filepath.Dir(path))
 		}
-		_, _ = run("daemon-reload")
+		if _, err := run("daemon-reload"); err != nil {
+			return fmt.Errorf("reload systemd after rollback: %w", err)
+		}
+		return nil
+	}
+	rollback := func(restart bool) error {
+		if err := restore(); err != nil {
+			return fmt.Errorf("restore previous configuration: %w", err)
+		}
+		if restart {
+			if _, err := run("restart", "haven.service"); err != nil {
+				return fmt.Errorf("restart after rollback: %w", err)
+			}
+		}
+		return nil
 	}
 	if enable {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -174,21 +194,19 @@ func configureHostingExperiment(path string, enable bool, run systemctlRunner) e
 		_ = os.Remove(filepath.Dir(path))
 	}
 	if _, err := run("daemon-reload"); err != nil {
-		restore()
-		return err
+		return errors.Join(err, rollback(false))
 	}
 	if _, err := run("restart", "haven.service"); err != nil {
-		restore()
-		return err
+		return errors.Join(err, rollback(true))
 	}
 	active, err := hostingExperimentStatus(run)
 	if err != nil || active != enable {
-		restore()
-		_, _ = run("restart", "haven.service")
 		if err != nil {
-			return fmt.Errorf("verify Hosting setting: %w", err)
+			err = fmt.Errorf("verify Hosting setting: %w", err)
+		} else {
+			err = errors.New("systemd did not apply the Hosting setting; the previous configuration was restored")
 		}
-		return errors.New("systemd did not apply the Hosting setting; the previous configuration was restored")
+		return errors.Join(err, rollback(true))
 	}
 	return nil
 }

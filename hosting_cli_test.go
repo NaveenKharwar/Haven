@@ -68,18 +68,46 @@ func TestConfigureHostingExperimentPreservesForeignDropIn(t *testing.T) {
 func TestConfigureHostingExperimentRollsBack(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "haven.service.d", "90-haven-hosting-experimental.conf")
 	restarts := 0
+	reloads := 0
 	err := configureHostingExperiment(path, true, func(args ...string) (string, error) {
+		if args[0] == "daemon-reload" {
+			reloads++
+		}
 		if args[0] == "restart" {
 			restarts++
-			return "", errors.New("restart failed")
+			if restarts == 1 {
+				return "", errors.New("restart failed")
+			}
 		}
 		return "", nil
 	})
-	if err == nil || restarts != 1 {
-		t.Fatalf("expected restart failure, got %v after %d restart calls", err, restarts)
+	if err == nil || restarts != 2 || reloads != 2 {
+		t.Fatalf("expected restart failure and rollback, got %v after %d restarts and %d reloads", err, restarts, reloads)
 	}
 	if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("failed enable left its drop-in behind: %v", statErr)
+	}
+}
+
+func TestConfigureHostingExperimentRollsBackFailedVerification(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "haven.service.d", "90-haven-hosting-experimental.conf")
+	var calls []string
+	err := configureHostingExperiment(path, true, func(args ...string) (string, error) {
+		calls = append(calls, strings.Join(args, " "))
+		return "", nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "did not apply") {
+		t.Fatalf("expected verification failure, got %v", err)
+	}
+	want := []string{
+		"daemon-reload", "restart haven.service", "show haven.service --property=Environment --value",
+		"daemon-reload", "restart haven.service",
+	}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("unexpected systemctl calls:\nwant %v\n got %v", want, calls)
+	}
+	if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("failed verification left its drop-in behind: %v", statErr)
 	}
 }
 
