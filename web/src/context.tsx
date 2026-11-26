@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react'
 import type { CatalogApp, Container, InstalledApp, Role, SystemInfo } from './api'
 
-export type Route = 'overview' | 'apps' | 'catalog' | 'updates' | 'server' | 'settings'
+export type Route = 'overview' | 'apps' | 'catalog' | 'updates' | 'hosting' | 'server' | 'settings'
 
 export type HavenCtx = {
   user: string

@@ -69,6 +69,10 @@ On **Updates**, an admin can also choose **Back up before updating** and enter a
 
 On the target server, use **Apps → Restore backup** and enter the path to the copied `.haven-backup` folder. Review a trusted backup, then restore it. The original app ID, Docker project, and restored storage paths must be unused. Included host folders can be restored to their original paths if you select them. Haven restores the app stopped so you can check image availability, ports and external dependencies before starting it.
 
+## Website hosting
+
+Haven has an **experimental, opt-in** Coolify integration for deploying private WordPress, Ghost and Static HTML sites and explicitly publishing them over HTTPS. Cloudflare Tunnel has been verified; direct public HTTPS remains unverified. Start with the [beginner-friendly website hosting guide](docs/WEBSITE_HOSTING_GUIDE.md), check the [verification checklist](docs/HOSTING_TESTING.md), and use the [technical setup and recovery guide](docs/HOSTING.md) for details.
+
 ## Security
 
 Haven runs as root, so treat it like the keys to your server.
