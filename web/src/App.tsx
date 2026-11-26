@@ -13,6 +13,7 @@ import AppsPage, { AppDrawer } from './Apps'
 import SettingsPage from './Settings'
 import UpdatesPage from './Updates'
 import NotificationBell from './bell'
+import HostingPage from './Hosting'
 import ServerPage from './Server'
 import TvApp from './tv/TV'
 import { enterTv } from './tv/spatial'
@@ -22,15 +23,31 @@ import { Footer } from './about'
 import { BatteryHeaderItem } from './battery'
 
 
-const allNav: { id: Route; label: string; key: string; min: Role }[] = [
+type NavItem = { id: Route; label: string; key: string; min: Role; experimental?: boolean }
+
+const allNav: NavItem[] = [
   { id: 'overview', label: 'Overview', key: '1', min: 'guest' },
   { id: 'apps', label: 'Apps', key: '2', min: 'guest' },
   { id: 'catalog', label: 'Catalog', key: '3', min: 'manager' },
   { id: 'updates', label: 'Updates', key: '4', min: 'manager' },
   { id: 'server', label: 'Server', key: '5', min: 'manager' },
   { id: 'settings', label: 'Settings', key: '6', min: 'guest' },
+  { id: 'hosting', label: 'Hosting', key: '7', min: 'admin', experimental: true },
 ]
 const legacy: Record<string, Route> = { dashboard: 'overview', store: 'catalog' }
+
+function NavLabel({ item, compact = false }: { item: NavItem; compact?: boolean }) {
+  return (
+    <span className={cx('flex items-center', compact ? 'flex-col gap-0 leading-none' : 'gap-1.5')}>
+      <span>{item.label}</span>
+      {item.experimental && (
+        <span className={cx('font-mono font-semibold uppercase text-warn', compact ? 'text-[0.4375rem] tracking-[0.12em]' : 'tag tag-warn text-[0.5625rem]')}>
+          Lab
+        </span>
+      )}
+    </span>
+  )
+}
 
 function routeFromHash(): Route {
   const h = readPath()
@@ -250,10 +267,10 @@ function Shell({ user, displayName, onDisplayNameChange, role, version, repo, au
                   onClick={() => navigate(n.id)}
                   aria-current={on ? 'page' : undefined}
                   className={cx('key key-sm gap-2 border-transparent', !on && 'key-flat')}
-                  title={`${n.label} (press ${n.key})`}
+                  title={`${n.label}${n.experimental ? ' — experimental' : ''} (press ${n.key})`}
                 >
                   <span className={cx('h-1.5 w-1.5 rounded-full', on ? 'bg-accent' : 'bg-unlit')} />
-                  {n.label}
+                  <NavLabel item={n} />
                   {n.id === 'updates' && updates > 0 && <span className="tag tag-accent">{updates}</span>}
                 </button>
               )
@@ -304,6 +321,7 @@ function Shell({ user, displayName, onDisplayNameChange, role, version, repo, au
           {allowed && route === 'catalog' && <CatalogPage />}
           {allowed && route === 'updates' && <UpdatesPage />}
           {allowed && route === 'server' && <ServerPage />}
+          {allowed && route === 'hosting' && <HostingPage />}
           {allowed && route === 'settings' && <SettingsPage onLogout={onLogout} onDisplayNameChange={onDisplayNameChange} />}
         </div>
         </PageGuard>
@@ -315,9 +333,9 @@ function Shell({ user, displayName, onDisplayNameChange, role, version, repo, au
           {nav.map((n) => {
             const on = route === n.id
             return (
-              <button key={n.id} onClick={() => navigate(n.id)} aria-current={on ? 'page' : undefined} className={cx('key key-sm w-full gap-1 border-transparent px-0.5 max-[400px]:text-[0.6875rem]', !on && 'key-flat')}>
+              <button key={n.id} onClick={() => navigate(n.id)} aria-current={on ? 'page' : undefined} className={cx('key key-sm w-full gap-1 border-transparent px-0.5', nav.length > 6 ? 'max-[400px]:text-[0.625rem]' : 'max-[400px]:text-[0.6875rem]', !on && 'key-flat')}>
                 <span className={cx('h-1.5 w-1.5 shrink-0 rounded-full max-[400px]:hidden', on ? 'bg-accent' : 'bg-unlit')} />
-                {n.label}
+                <NavLabel item={n} compact />
               </button>
             )
           })}

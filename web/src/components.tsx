@@ -159,6 +159,7 @@ export function Modal({ open, onClose, label, title, children, wide, footer }: {
       <div
         role="dialog"
         aria-modal="true"
+        aria-label={typeof title === 'string' ? title : label}
         className={cx('plate rise flex max-h-[92vh] w-full flex-col overflow-hidden rounded-b-none sm:rounded-[3px]', wide ? 'sm:max-w-3xl' : 'sm:max-w-lg')}
         onMouseDown={(e) => e.stopPropagation()}
       >

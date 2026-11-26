@@ -117,6 +117,7 @@ func main() {
 	}
 	sessions := NewSessions(filepath.Join(dir, "sessions.json"))
 	srv := NewServer(store, sessions, apps, catalog, sys, jobs, docker, dist)
+	go srv.hosting.run(context.Background())
 	_, port, _ := net.SplitHostPort(*addr)
 	if port == "" {
 		port = "8484"

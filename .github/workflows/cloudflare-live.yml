@@ -1,0 +1,54 @@
+name: Cloudflare API lifecycle
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-live
+  cancel-in-progress: false
+
+jobs:
+  lifecycle:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: cloudflare-integration
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Exercise Cloudflare API lifecycle
+        env:
+          HAVEN_CLOUDFLARE_LIVE: run
+          HAVEN_CLOUDFLARE_STATE: ${{ runner.temp }}/haven-cloudflare-live.json
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_TEST_DOMAIN: ${{ vars.CLOUDFLARE_TEST_DOMAIN }}
+        run: go test -count=1 -run '^TestCloudflareLiveLifecycle$' ./
+      - name: Reconcile temporary Cloudflare resources
+        if: always()
+        env:
+          HAVEN_CLOUDFLARE_LIVE: cleanup
+          HAVEN_CLOUDFLARE_STATE: ${{ runner.temp }}/haven-cloudflare-live.json
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_TEST_DOMAIN: ${{ vars.CLOUDFLARE_TEST_DOMAIN }}
+        run: go test -count=1 -run '^TestCloudflareLiveCleanup$' ./
+      - name: Describe coverage
+        if: always()
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ## Cloudflare API lifecycle
+
+          This workflow verifies real API permissions, zone discovery, temporary
+          Tunnel and DNS creation, exact ingress configuration, ownership checks,
+          idempotent retries, conflict rejection, and cleanup.
+
+          It does **not** verify a cloudflared connection, website traffic, DNS
+          propagation, or trusted public HTTPS. Those require the planned public
+          end-to-end workflow.
+          EOF

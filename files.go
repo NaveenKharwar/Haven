@@ -92,6 +92,9 @@ func (f *Files) Resolve(p string) (string, error) {
 		return "", errors.New("invalid path")
 	}
 	p = filepath.Clean(p)
+	if within(filepath.Join(f.dir, "hosting"), p) {
+		return "", errors.New("that path is reserved for Haven Hosting")
+	}
 	if within(filepath.Join(f.dir, uploadStateDir), p) || strings.HasPrefix(filepath.Base(p), uploadTempPrefix) {
 		return "", errors.New("that path is reserved for uploads")
 	}
@@ -105,6 +108,9 @@ func (f *Files) Resolve(p string) (string, error) {
 			return "", err
 		}
 		real = filepath.Join(parent, filepath.Base(p))
+	}
+	if within(filepath.Join(f.dir, "hosting"), real) {
+		return "", errors.New("that path is reserved for Haven Hosting")
 	}
 	if within(filepath.Join(f.dir, uploadStateDir), real) || strings.HasPrefix(filepath.Base(real), uploadTempPrefix) {
 		return "", errors.New("that path is reserved for uploads")

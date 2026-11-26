@@ -42,11 +42,12 @@ type Server struct {
 	self      *SelfUpdate
 	cleaner   *Cleaner
 	devices   *Devices
+	hosting   *Hosting
 }
 
 func NewServer(st *Store, sessions *Sessions, apps *Manager, cat *Catalog, sys *SystemMonitor, jobs *Jobs, d *Docker, static fs.FS) *Server {
 	return &Server{store: st, sessions: sessions, limiter: NewLoginLimiter(), pairs: NewPairings(), pairLimiter: NewLoginLimiter(),
-		apps: apps, catalog: cat, sys: sys, jobs: jobs, docker: d, static: static}
+		apps: apps, catalog: cat, sys: sys, jobs: jobs, docker: d, static: static, hosting: newHosting(st, jobs, d)}
 }
 
 type ctxKey string
@@ -158,6 +159,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/widgets/places", s.need(RoleAdmin, s.findPlaces))
 	mux.Handle("POST /api/widgets/feed-check", s.need(RoleAdmin, s.checkFeed))
 
+	s.hostingRoutes(mux)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { jsonError(w, http.StatusNotFound, "not found") })
 	mux.Handle("/", s.spa())
 
@@ -948,12 +950,16 @@ func (s *Server) containerLogs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"logs": string(out)})
 }
 
+func adminJob(action string) bool {
+	return backupJob(action) || strings.HasPrefix(action, "hosting-")
+}
+
 func (s *Server) listJobs(w http.ResponseWriter, r *http.Request) {
 	jobs := s.jobs.List()
 	if person(r).Role != RoleAdmin {
 		visible := jobs[:0]
 		for _, job := range jobs {
-			if !backupJob(job.Action) {
+			if !adminJob(job.Action) {
 				visible = append(visible, job)
 			}
 		}
@@ -969,7 +975,7 @@ func (s *Server) getJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := person(r)
-	if (p.Role != RoleAdmin && backupJob(j.Action)) || (rankOf(p.Role) < rankOf(RoleManager) && !allowedApp(p, j.App)) {
+	if (p.Role != RoleAdmin && adminJob(j.Action)) || (rankOf(p.Role) < rankOf(RoleManager) && !allowedApp(p, j.App)) {
 		jsonError(w, http.StatusForbidden, "your account isn't allowed to do this")
 		return
 	}

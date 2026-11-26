@@ -1,0 +1,66 @@
+# Website hosting with Coolify
+
+New to Haven website hosting? Start with the [beginner-friendly website hosting guide](WEBSITE_HOSTING_GUIDE.md).
+
+Website hosting is an admin-only experimental preview for owners hosting their own websites. Haven uses Coolify 4.7.6 on the same Linux Docker host for deployment, storage, and lifecycle. The workflow remains opt-in while real homelab use finds edge cases and the remaining checks are completed. Cloudflare Tunnel, guided Static HTML, modern-framework handoff and interrupted Coolify installation recovery have passed verification. Direct public HTTPS, natural certificate renewal, narrow-token Tunnel publication, Ghost SMTP-assisted sign-in and full Ghost restore remain unverified. See the [verification checklist](HOSTING_TESTING.md) for exact evidence and limitations.
+
+## Prepare the host
+
+On a dedicated test host with a systemd installation, run `sudo systemctl edit haven`. Add the following above the editor's comment marker and save. Apply the change with `sudo systemctl restart haven`.
+
+```ini
+[Service]
+Environment=HAVEN_HOSTING_EXPERIMENTAL=1
+```
+
+Open **Hosting** as an administrator. The new-platform preflight checks Linux and architecture, root access, CPU cores, RAM, free disk space, Docker Engine 28 or later with Compose, SSH, existing Coolify containers, and ports. Verify space on the filesystem containing `/data` and keep the dashboard ports (8000, 6001, and 6002) private. Run the Coolify installer from Hosting only after reviewing its changes, or connect an existing supported release. Use the private dashboard to finish initial account setup.
+
+Enable the Coolify API and create a token with read, write, and deploy permissions. Use a Coolify team administrator token for direct publishing so Haven can check the team's DNS integrations. Add `read:sensitive` only if you need Coolify logs in Haven. Discover the local server, project, environment, and destination in Hosting. Use the loopback dashboard origin for HTTP. Access it from another device with an SSH port forward. An existing HTTPS dashboard origin must be trusted by Haven.
+
+See [Coolify installation](https://coolify.io/docs/get-started/installation), [the pinned release](https://github.com/coollabsio/coolify/releases/tag/v4.7.6), and [Coolify API permissions](https://coolify.io/docs/api/permissions).
+
+## Install a private website
+
+Choose the guided WordPress + MariaDB, Ghost or Static HTML template, enter a name, and confirm the private install. Haven creates a Coolify service, checks that Coolify assigned no domain, queues the deployment, and waits for the expected loopback-only web container to answer before marking it ready. Databases have no host port. If deployment fails or times out, use **Retry install** after fixing the issue; Haven reconciles the existing service instead of creating a duplicate. Static HTML accepts one UTF-8 homepage up to 256 KB and serves it with pinned Nginx. React, Next.js, Vue, Nuxt, SvelteKit, Astro and other modern frameworks can be deployed from Git in Coolify; Docker images and advanced Compose are also handed off to Coolify and are not automatically tracked as Haven sites.
+
+The searchable catalog lists the pinned release's upstream templates. Open Coolify for platform-specific configuration, persistent storage settings, advanced deployment operations, and templates outside the guided workflow. From Coolify, keep the guided site's service description, container names and networks intact while Haven manages its publishing.
+
+### Ghost verification email
+
+The guided Ghost template deploys Ghost and MySQL. Configure Ghost's transactional email in the existing Coolify service so administrators can receive verification codes from an unrecognized browser. Use an SMTP service and a sender it authorizes. In Coolify, pass the mail settings to the Ghost container as environment variables using Ghost's double-underscore notation, including `mail__transport`, `mail__options__host`, and the port, security, and credentials required by your provider. Restart the Ghost service and verify delivery and sign-in in a fresh browser profile while the site is private. Without working transactional email, Ghost can fail a new-device administrator sign-in when it cannot send the verification code. [Ghost staff device verification](https://ghost.org/help/does-ghost-use-2fa/), [Ghost mail configuration](https://docs.ghost.org/config/#mail)
+
+## Publish one hostname
+
+Review the exact hostname, website, access method and DNS changes in Haven before selecting **Confirm publication**. Publishing sets the canonical HTTPS URL and restarts the site through Coolify. Back up established sites first. A hostname change may need a WordPress-aware migration of URLs already stored in posts or media, or the equivalent in Ghost.
+
+### Cloudflare Tunnel
+
+Create one custom API token with two policies. Restrict **Account → Cloudflare Tunnel → Edit** to the account that owns the zone. Restrict **Zone → Zone → Read** and **Zone → DNS → Edit** to the selected active zone. Direct publishing with Cloudflare-managed DNS uses the same zone policy. Direct publishing with manual DNS needs no Cloudflare token.
+
+Haven reads zone details to check ownership and status. It lists and creates tunnels, reads tunnel status and the connector token, and reads and updates tunnel configuration. It looks up DNS records by exact hostname and creates or deletes its own record. With managed direct DNS it can also update its A record. Cloudflare's API lists Tunnel Write (Edit in the token editor) as accepted for the tunnel reads and writes Haven uses, and DNS Write (DNS Edit) as accepted for record lookup and mutations. The zone-details endpoint also accepts DNS Write. The setup form lists Zone Read separately to make the zone check explicit. Connectivity Directory permissions are alternatives on some endpoints. Keep the token scoped to these operations. Root-domain, account and zone discovery have been verified with the documented narrow token. Tunnel mutation and cleanup with that scope still require end-to-end verification. Saving the connection checks zone access only. [Cloudflare zone details](https://developers.cloudflare.com/api/resources/zones/methods/get/), [Tunnel configuration](https://developers.cloudflare.com/api/resources/zero_trust/subresources/tunnels/subresources/cloudflared/subresources/configurations/methods/get/), [Cloudflare Tunnel setup](https://developers.cloudflare.com/tunnel/get-started/), [DNS record lookup](https://developers.cloudflare.com/api/resources/dns/subresources/records/methods/list/)
+
+A separate connector credential is stored on the server and mounted read-only by cloudflared. The connector uses outbound connections and gets access to the dedicated website network of each selected site. It has no Docker socket, privileged mode, or database network. The tunnel ends in a 404 fallback. Use Haven to manage that tunnel and leave custom or wildcard routes outside it.
+
+Cloudflare serves the visitor certificate and encrypts traffic to the connector. The connector forwards HTTP over the website's Docker network. Verify the site's response, login, and media URLs from an internet connection outside the LAN and Tailscale. Deeper hostnames may require additional certificate coverage. Haven checks DNS, connector status, the exact route, and the hostname's HTTPS response independently. [Cloudflare Tunnel setup](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel-api/), [Universal SSL coverage](https://developers.cloudflare.com/ssl/edge-certificates/universal-ssl/enable-universal-ssl/)
+
+### Direct access
+
+Start the supported local Coolify Traefik proxy and turn off Haven's extra port-80 listener. Review every HTTP and HTTPS route on the proxy, including file-based routes. Keep both administrative dashboards and unrelated services off its public listeners. Disable Coolify's own automatic DNS for the chosen zone so Haven or the domain owner has sole responsibility for the record.
+
+Haven checks the proxy bindings and compares an optional router WAN IPv4 with the address it observes externally. An observed address alone leaves CGNAT and inbound reachability unknown. After confirming the exact hostname and proxy exposure, follow Hosting's manual router instructions to forward TCP 80 and 443 only. With manual DNS, create the indicated DNS-only A record. With Cloudflare DNS, Haven creates its own A record and leaves unrelated records alone.
+
+Open the website over HTTPS from mobile data or another external connection with Tailscale off. Record that check in Haven. If the certificate stays pending, review the Coolify proxy logs for ACME errors and check DNS, inbound routing and port conflicts. If direct access fails, investigate with your provider or use Tunnel. When automatic DNS is enabled, Haven checks for IP changes and updates its A record only if the candidate address serves the site's trusted HTTPS response. Routers without NAT loopback can prevent the server from verifying its public route, so use an external test for diagnosis. [Coolify domains and certificates](https://coolify.io/docs/core/networking/domains)
+
+## Unpublish and recover
+
+Use **Unpublish** to remove the dedicated route and the DNS record Haven owns. For manual DNS, remove the record at your DNS provider. Review whether to remove the router forwards after the last direct site. Retrying an interrupted operation uses the saved hostname and provider ownership information. If Haven reports an edited record or tunnel configuration, review those resources in Cloudflare before retrying. Rotate the API tokens in the connection settings and revoke old ones with the provider. Follow Cloudflare's connector rotation guidance and plan for a brief restart when rotating its connector token.
+
+Use Coolify to back up the website files and database, plus the Coolify instance configuration. Coordinate the database and file backups at the same consistent point, and verify the copies are recoverable off-server. Use **Download recovery metadata** for service and project IDs, the template, available image and volume details, and the hostname and publishing method. Keep it with the site backups. Save the Coolify encryption key and other credentials securely off-server. Restoring the Coolify instance alone leaves workload data recovery to the website backups.
+
+For WordPress, a logical MariaDB export and a copy of the full `wp-content` directory capture posts, users, plugins, themes, and uploads. Keep any custom files and configuration outside `wp-content` if your site uses them. When restoring into a fresh guided deployment, use the new deployment's database credentials and private URL.
+
+Restore the database and website files together on a clean, isolated server. Keep its proxy and any reused hostname disconnected from public traffic while checking the restore. Verify posts, uploads, authentication, and application behavior, then reconnect credentials and explicitly review publication. A restored Haven data directory may include previous publishing metadata. Leave Hosting disabled during recovery, keep the old connector disconnected, and review the old provider resources before reconnecting. [Coolify instance backup](https://coolify.io/docs/core/backup-and-recovery/instance-backup), [Coolify service operations](https://coolify.io/docs/services/operations/overview)
+
+## Release verification
+
+Before removing the experimental flag, exercise private install, update and full restore for WordPress and Ghost on an isolated Linux host. Verify direct HTTPS, certificate renewal, router conflicts, connector rotation, DNS IP changes and interrupted publish/unpublish operations. Repeat Tunnel publication and cleanup with the documented narrow token. From outside the LAN and Tailscale, check that each authorized hostname serves its own site and that unknown hostnames, the Haven and Coolify dashboards, databases and unrelated applications are inaccessible. Hosting customer workloads requires a separate isolation and abuse-control design.
