@@ -4,6 +4,8 @@ Each release's notes come from its section here. Add a `## <version>` section be
 
 ## Unreleased
 
+- Replaced interactive systemd editing in the Hosting guides with a dedicated drop-in, conflict checks, verification commands, and rollback steps.
+
 ## 0.1.38
 
 - Added an experimental, opt-in Hosting preview for private Coolify website installs and reviewed HTTPS publishing through Cloudflare Tunnel or direct access. Tunnel publishing is verified; direct public HTTPS remains unverified.

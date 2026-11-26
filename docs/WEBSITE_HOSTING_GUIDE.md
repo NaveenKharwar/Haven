@@ -16,19 +16,66 @@ Start with a Haven server that does not yet have Coolify. You will install Cooli
 Hosting is an experimental preview. On a systemd-based Haven server, enable it once:
 
 1. On your computer, open a terminal and SSH into the server with your usual login: `ssh SSH_USER@SERVER_ADDRESS`. Replace both placeholders with your own details.
-2. Run `sudo systemctl edit haven`. In the editor, add these two lines **above** the commented instructions, then save and exit:
+2. Check for an existing setting before creating the dedicated drop-in:
 
-   ```ini
-   [Service]
-   Environment=HAVEN_HOSTING_EXPERIMENTAL=1
+   ```sh
+   sudo test ! -e /etc/systemd/system/haven.service.d/hosting.conf || sudo cat /etc/systemd/system/haven.service.d/hosting.conf
+   sudo grep -Rns --include='*.conf' 'HAVEN_HOSTING_EXPERIMENTAL' /etc/systemd/system/haven.service.d 2>/dev/null || true
    ```
 
-3. Run `sudo systemctl restart haven`. This briefly restarts Haven; reconnect to its dashboard if needed.
+   A clean installation prints nothing. If `hosting.conf` already exists with exactly the configuration shown in the next step, it is safe to continue. If it contains anything else, do not overwrite it: preserve a backup and move unrelated settings to their own descriptively named drop-in first. If the second command shows a previous `override.conf`, do not delete that file because it may contain other settings. When the matching line contains only the Hosting environment assignment, migrate it non-interactively while preserving a backup and every other line:
+
+   ```sh
+   legacy=/etc/systemd/system/haven.service.d/override.conf
+   sudo cp -a "$legacy" "$legacy.before-hosting"
+   sudo sed -Ei '\|^[[:space:]]*Environment="?HAVEN_HOSTING_EXPERIMENTAL=[^"[:space:]]+"?[[:space:]]*$|d' "$legacy"
+   ```
+
+   Run the check again. Resolve any remaining assignment in another drop-in before continuing so a later file cannot override `hosting.conf`. Back up that file and remove only the standalone Hosting assignment; preserve its other settings.
+3. Create the dedicated configuration, reload systemd and restart Haven:
+
+   ```sh
+   sudo mkdir -p /etc/systemd/system/haven.service.d
+   printf '[Service]\nEnvironment=HAVEN_HOSTING_EXPERIMENTAL=1\n' | sudo tee /etc/systemd/system/haven.service.d/hosting.conf >/dev/null
+   sudo systemctl daemon-reload
+   sudo systemctl restart haven
+   ```
+
+   The restart briefly disconnects the dashboard. Verify the service and effective setting:
+
+   ```sh
+   sudo systemctl is-active haven
+   sudo systemctl show haven --property=Environment --value | tr ' ' '\n' | grep -x 'HAVEN_HOSTING_EXPERIMENTAL=1'
+   ```
+
+   The expected output is:
+
+   ```text
+   active
+   HAVEN_HOSTING_EXPERIMENTAL=1
+   ```
+
 4. Sign in to Haven as an administrator and select **Hosting** in the top navigation. If you are not an administrator, ask the Haven administrator to complete these steps.
 
 ![Haven Hosting on a new server, with Hosting and Run install checks highlighted](images/hosting-first-run.png)
 
-If the page says **Hosting is off**, check the service override and restart. If your Haven installation does not use systemd, ask its administrator how to set the environment variable for the Haven service.
+If the page says **Hosting is off**, repeat the verification commands and use `sudo systemctl cat haven` to look for a later conflicting assignment. If your Haven installation does not use systemd, ask its administrator how to set the environment variable for the Haven service.
+
+To disable the preview, remove only its dedicated drop-in, reload systemd and restart Haven:
+
+```sh
+sudo rm -f /etc/systemd/system/haven.service.d/hosting.conf
+sudo systemctl daemon-reload
+sudo systemctl restart haven
+sudo systemctl is-active haven
+if sudo systemctl show haven --property=Environment --value | tr ' ' '\n' | grep -q '^HAVEN_HOSTING_EXPERIMENTAL='; then
+  echo 'A different drop-in still sets HAVEN_HOSTING_EXPERIMENTAL'
+else
+  echo 'Hosting override removed'
+fi
+```
+
+The expected output is `active` followed by `Hosting override removed`. If another drop-in still sets the variable, back up that file and remove only its stale Hosting assignment; do not remove unrelated service settings.
 
 On a new server, the Coolify connection fields appear before Coolify is installed. Leave them empty for now; use **Run install checks** below them. Website platforms appear after Coolify is connected.
 

@@ -6,12 +6,41 @@ Website hosting is an admin-only experimental preview for owners hosting their o
 
 ## Prepare the host
 
-On a dedicated test host with a systemd installation, run `sudo systemctl edit haven`. Add the following above the editor's comment marker and save. Apply the change with `sudo systemctl restart haven`.
+On a dedicated test host with a systemd installation, first check whether an existing drop-in already sets the feature flag:
 
-```ini
-[Service]
-Environment=HAVEN_HOSTING_EXPERIMENTAL=1
+```sh
+sudo test ! -e /etc/systemd/system/haven.service.d/hosting.conf || sudo cat /etc/systemd/system/haven.service.d/hosting.conf
+sudo grep -Rns --include='*.conf' 'HAVEN_HOSTING_EXPERIMENTAL' /etc/systemd/system/haven.service.d 2>/dev/null || true
 ```
+
+A clean installation prints nothing. Do not overwrite an existing `hosting.conf` unless it contains exactly the dedicated setting below; preserve other settings in their own descriptively named drop-in. If an older `override.conf` contains the setting, preserve any unrelated settings and migrate only the standalone Hosting assignment as described in the [beginner guide](WEBSITE_HOSTING_GUIDE.md#1-enable-hosting-and-open-it). Then create a dedicated drop-in, reload systemd and restart Haven:
+
+```sh
+sudo mkdir -p /etc/systemd/system/haven.service.d
+printf '[Service]\nEnvironment=HAVEN_HOSTING_EXPERIMENTAL=1\n' | sudo tee /etc/systemd/system/haven.service.d/hosting.conf >/dev/null
+sudo systemctl daemon-reload
+sudo systemctl restart haven
+```
+
+Verify the service and effective environment:
+
+```sh
+sudo systemctl is-active haven
+sudo systemctl show haven --property=Environment --value | tr ' ' '\n' | grep -x 'HAVEN_HOSTING_EXPERIMENTAL=1'
+```
+
+The expected output is `active` followed by `HAVEN_HOSTING_EXPERIMENTAL=1`. If it differs, use `sudo systemctl cat haven` to identify a later conflicting drop-in without changing unrelated configuration.
+
+To roll back, remove only the dedicated file, reload systemd and restart the service:
+
+```sh
+sudo rm -f /etc/systemd/system/haven.service.d/hosting.conf
+sudo systemctl daemon-reload
+sudo systemctl restart haven
+sudo systemctl is-active haven
+```
+
+The expected output is `active`. Confirm that no older drop-in still enables Hosting with the check above; restore or update only the conflicting assignment if one remains.
 
 Open **Hosting** as an administrator. The new-platform preflight checks Linux and architecture, root access, CPU cores, RAM, free disk space, Docker Engine 28 or later with Compose, SSH, existing Coolify containers, and ports. Verify space on the filesystem containing `/data` and keep the dashboard ports (8000, 6001, and 6002) private. Run the Coolify installer from Hosting only after reviewing its changes, or connect an existing supported release. Use the private dashboard to finish initial account setup.
 
