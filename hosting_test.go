@@ -212,6 +212,41 @@ func TestHostingCloudflareDiscoversExactZone(t *testing.T) {
 	}
 }
 
+func TestHostingCloudflareChecksPublishingAccess(t *testing.T) {
+	seen := map[string]bool{}
+	client := cloudflareHostingClient{
+		token: "scoped-cloudflare-token",
+		config: hostingCloudflare{
+			Account: "22222222222222222222222222222222",
+			Zone:    "11111111111111111111111111111111",
+			Name:    "example.com",
+		},
+		client: &http.Client{Transport: hostingTestTransport(func(r *http.Request) (int, any) {
+			seen[r.URL.Path] = true
+			switch r.URL.Path {
+			case "/accounts/22222222222222222222222222222222/cfd_tunnel":
+				if r.URL.Query().Get("is_deleted") != "false" || r.URL.Query().Get("per_page") != "1" {
+					t.Fatalf("unexpected tunnel access query: %s", r.URL.RawQuery)
+				}
+			case "/zones/11111111111111111111111111111111/dns_records":
+				if r.URL.Query().Get("name.exact") != "example.com" {
+					t.Fatalf("unexpected DNS access query: %s", r.URL.RawQuery)
+				}
+			default:
+				t.Fatalf("unexpected access request: %s", r.URL.String())
+			}
+			return 200, cloudflareTestResponse([]any{})
+		})},
+		base: "https://api.cloudflare.test",
+	}
+	if err := client.checkPublishingAccess(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(seen) != 2 {
+		t.Fatalf("expected Tunnel and DNS access checks, saw %v", seen)
+	}
+}
+
 func TestHostingStaticSourceValidation(t *testing.T) {
 	store, err := LoadStore(t.TempDir())
 	if err != nil {

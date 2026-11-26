@@ -16,30 +16,33 @@ Start with a Haven server that does not yet have Coolify. You will install Cooli
 Hosting is an experimental preview. On a systemd-based Haven server, enable it once:
 
 1. On your computer, open a terminal and SSH into the server with your usual login: `ssh SSH_USER@SERVER_ADDRESS`. Replace both placeholders with your own details.
-2. Run `sudo systemctl edit haven`. In the editor, add these two lines **above** the commented instructions, then save and exit:
+2. Run `sudo haven experimental`. Haven lists its experimental features and shows whether each one is enabled.
 
-   ```ini
-   [Service]
-   Environment=HAVEN_HOSTING_EXPERIMENTAL=1
+   ```text
+   Haven experimental features
+
+     1. Website and App Hosting [disabled]
+
+   Select a feature to manage (1, or q to quit):
    ```
 
-3. Run `sudo systemctl restart haven`. This briefly restarts Haven; reconnect to its dashboard if needed.
-4. Sign in to Haven as an administrator and select **Hosting** in the top navigation. If you are not an administrator, ask the Haven administrator to complete these steps.
+3. Enter `1` for **Website and App Hosting**, then enter `y` to enable it. Haven writes its own systemd drop-in, restarts the service, and verifies the setting. This briefly disconnects the dashboard.
+4. Reconnect, sign in to Haven as an administrator and select **Hosting** in the top navigation. If you are not an administrator, ask the Haven administrator to complete these steps. The **Beginner guide** button in the page header returns to this guide at any time.
 
-![Haven Hosting on a new server, with Hosting and Run install checks highlighted](images/hosting-first-run.png)
+If the page says **Hosting is off**, run `sudo haven experimental` again and check the status shown beside Hosting. For automation, `sudo haven hosting enable`, `sudo haven hosting disable`, and `haven hosting status` provide non-interactive equivalents.
 
-If the page says **Hosting is off**, check the service override and restart. If your Haven installation does not use systemd, ask its administrator how to set the environment variable for the Haven service.
+On a new server, choose **Install on this server → Run install checks**. Use **Connect an existing installation** only when Coolify is already installed and ready for an API token. Website platforms appear after Coolify is connected.
 
-On a new server, the Coolify connection fields appear before Coolify is installed. Leave them empty for now; use **Run install checks** below them. Website platforms appear after Coolify is connected.
+![Haven Hosting first-run page in light mode with separate installation and existing-connection paths](images/hosting-first-run.png)
 
 ## 2. Install Coolify
 
 Haven installs the supported Coolify version for you. You do not need to install it separately.
 
 1. Under **Coolify**, select **Run install checks**.
-2. Read each result. A red result blocks installation; an amber result warns about current capacity or identifies a partial installation. Fix blocked checks and reduce memory, swap or load pressure before continuing. For example, if Haven uses port 80, open **Server → Local address**, turn off **Also answer on port 80**, and return to Hosting. Ports 80, 443, 6001, 6002 and 8000 must be free for a new installation.
+2. Read each result. Haven places blocked checks and warnings first, with passed checks below them; scroll inside the results list to review everything. A red result blocks installation; an amber result warns about current capacity or identifies a partial installation. Fix blocked checks and reduce memory, swap or load pressure before continuing. For example, if Haven uses port 80, open **Server → Local address**, turn off **Also answer on port 80**, and return to Hosting. Ports 80, 443, 6001, 6002 and 8000 must be free for a new installation.
 
-   ![Haven installation checks in light mode, with the review button highlighted](images/hosting-checks-light.png)
+   ![Haven installation checks in a fixed-height light-mode results list, with the review button highlighted](images/hosting-checks-light.png)
 
 3. When all checks pass, select **Review Coolify installation**. Read the confirmation: the installer starts platform containers and configures local SSH access for deployments.
 
@@ -98,10 +101,10 @@ Treat this token like a password.
 
 Return to **Haven → Hosting**.
 
-![Haven light-mode Coolify connection form with the fields and buttons highlighted](images/hosting-coolify-light.png)
+![Haven light-mode Coolify connection form with the token visibility control, discovered resources and save controls highlighted](images/hosting-coolify-light.png)
 
 1. **Dashboard URL** — leave `http://127.0.0.1:8000`. Haven uses this address on the server itself; it is not your site's public address.
-2. **Coolify API token** — paste the token you just copied.
+2. **Coolify API token** — paste the token you just copied. Use the eye button to check what you entered, then hide it again before continuing if anyone else can see your screen.
 3. Select **Load resources**. Choose the local server, usually **localhost**, and your project.
 4. Select **Load resources** again. Choose the environment, usually **production**. Choose a destination if one is offered.
 5. Select **Save connection**.
@@ -121,7 +124,7 @@ For React, Next.js, Vue, Nuxt, SvelteKit, Astro and other modern frameworks, use
 
 ## 8. Open the site privately
 
-![Private website card with the SSH control marked](images/hosting-private.png)
+![Private website card in light mode with the SSH instructions marked](images/hosting-private.png)
 
 1. On your website card, open **Open privately with SSH**.
 2. Copy the command shown there into a terminal on your computer. Replace `YOUR_SSH_USER` and the server address with your SSH login details. Run it and sign in if prompted.
@@ -172,10 +175,14 @@ Treat the token like a password. Tunnel Edit can manage tunnels in the selected 
 ### Connect Cloudflare to Haven
 
 1. In Haven Hosting, select **Connect Cloudflare**.
-2. Enter the root domain, such as `example.com`, and paste the **Cloudflare API token**. Haven discovers the matching Account ID and Zone ID; you no longer need to copy them from the dashboard.
-3. Select **Save Cloudflare connection**.
+2. Enter the root domain, such as `example.com`, and paste the **Cloudflare API token**. Use the eye button if you need to check the token you entered.
+3. Select **Check Cloudflare access**. Haven verifies that the token finds exactly one active matching zone and can read the zone's DNS records and the account's Tunnels. A specific error identifies a missing or incorrect scope.
 
-Saving checks the zone connection. Haven checks the tunnel permissions when you publish.
+   ![Haven light-mode Cloudflare form with the token visibility control, verified zone and save action highlighted](images/hosting-cloudflare-check-light.png)
+
+4. After the green confirmation names the expected zone, select **Save Cloudflare connection**. Haven rechecks the details before storing the connection. You no longer need to copy Account or Zone IDs from the Cloudflare dashboard.
+
+The access check is read-only: it does not create a Tunnel or change DNS. Haven exercises the required write operations only after you review and confirm a publication.
 
 ## 10. Publish with Cloudflare Tunnel
 
@@ -183,7 +190,7 @@ Saving checks the zone connection. Haven checks the tunnel permissions when you 
 2. Enter your hostname and choose **Cloudflare Tunnel**.
 3. Select **Review publication**.
 
-   ![Haven publication planning dialog](images/hosting-publish.png)
+   ![Haven publication planning dialog in light mode](images/hosting-publish.png)
 
 4. Check the website, hostname, access method and DNS change. This creates a public route and DNS record and changes the site's canonical URL. Back up existing content first; changing domains may require an application-aware migration. Select **Confirm publication** only when ready to make the site public.
 5. Wait for the job, then select **Check website** to see the HTTPS status. Open the public address from a separate internet connection, such as mobile data with Wi-Fi and Tailscale off. Check the page, sign-in and images.

@@ -46,6 +46,18 @@ func main() {
 		case "reset-token":
 			runResetToken(*dataDir)
 			return
+		case "hosting":
+			if err := runHostingCLI(os.Args[2:], os.Stdout); err != nil {
+				fmt.Fprintln(os.Stderr, "haven hosting:", err)
+				os.Exit(1)
+			}
+			return
+		case "experimental", "experiments":
+			if err := runExperimentalCLI(os.Args[2:], os.Stdin, os.Stdout); err != nil {
+				fmt.Fprintln(os.Stderr, "haven experimental:", err)
+				os.Exit(1)
+			}
+			return
 		}
 	}
 

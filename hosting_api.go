@@ -15,7 +15,7 @@ func (s *Server) hostingRoutes(mux *http.ServeMux) {
 	for _, path := range []string{"", "/preflight", "/catalog", "/sites/{id}/status", "/sites/{id}/logs", "/sites/{id}/recovery"} {
 		mux.Handle("GET /api/hosting"+path, s.need(RoleAdmin, s.hostingRead))
 	}
-	for _, path := range []string{"/connect", "/discover", "/cloudflare", "/setup", "/sites", "/sites/{id}/retry",
+	for _, path := range []string{"/connect", "/discover", "/cloudflare", "/cloudflare/check", "/setup", "/sites", "/sites/{id}/retry",
 		"/sites/{id}/preview", "/sites/{id}/publish", "/sites/{id}/unpublish", "/sites/{id}/external"} {
 		mux.Handle("POST /api/hosting"+path, s.need(RoleAdmin, s.hostingWrite))
 	}
@@ -174,6 +174,13 @@ func (s *Server) hostingWrite(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]bool{"connected": true})
+	case "POST /api/hosting/cloudflare/check":
+		config, err := h.checkCloudflare(ctx, st, req)
+		if err != nil {
+			fail(err)
+			return
+		}
+		writeJSON(w, http.StatusOK, config)
 	case "POST /api/hosting/sites":
 		if !req.Confirm || st.Coolify.URL == "" || keys.Coolify == "" {
 			fail(errors.New("Connect Coolify and confirm a private installation first."))
@@ -340,8 +347,21 @@ func (h *Hosting) connect(ctx context.Context, st hostingState, keys hostingSecr
 }
 
 func (h *Hosting) connectCloudflare(ctx context.Context, st hostingState, keys hostingSecrets, req hostingRequest) error {
+	config, err := h.checkCloudflare(ctx, st, req)
+	if err != nil {
+		return err
+	}
+	st.Cloudflare = config
+	keys.Cloudflare, keys.CloudflareZone = req.Token, config.Account+"/"+config.Zone
+	if err := h.write("secrets.json", keys); err != nil {
+		return err
+	}
+	return h.save(st)
+}
+
+func (h *Hosting) checkCloudflare(ctx context.Context, st hostingState, req hostingRequest) (hostingCloudflare, error) {
 	if !validHostingToken(req.Token) {
-		return errors.New("Enter a valid Cloudflare API token.")
+		return hostingCloudflare{}, errors.New("Enter a valid Cloudflare API token.")
 	}
 	locked := st.TunnelName != ""
 	for _, site := range st.Sites {
@@ -353,7 +373,7 @@ func (h *Hosting) connectCloudflare(ctx context.Context, st hostingState, keys h
 	if locked {
 		config = st.Cloudflare
 		if req.Domain != "" && !strings.EqualFold(strings.TrimSpace(req.Domain), config.Name) {
-			return errors.New("Existing Haven routes use the connected zone. Enter the same domain to rotate its token.")
+			return hostingCloudflare{}, errors.New("Existing Haven routes use the connected zone. Enter the same domain to rotate its token.")
 		}
 		c.config = config
 		_, err = c.zone(ctx)
@@ -364,24 +384,23 @@ func (h *Hosting) connectCloudflare(ctx context.Context, st hostingState, keys h
 		c.config = config
 		config.Name, err = c.zone(ctx)
 	} else {
-		return errors.New("Enter the root domain and an API token scoped to that zone and account.")
+		return hostingCloudflare{}, errors.New("Enter the root domain and an API token scoped to that zone and account.")
 	}
 	if err != nil {
-		return err
+		return hostingCloudflare{}, err
 	}
 	if config.Name == "" {
 		c.config = config
 		config.Name, err = c.zone(ctx)
 		if err != nil {
-			return err
+			return hostingCloudflare{}, err
 		}
 	}
-	st.Cloudflare = config
-	keys.Cloudflare, keys.CloudflareZone = req.Token, config.Account+"/"+config.Zone
-	if err := h.write("secrets.json", keys); err != nil {
-		return err
+	c.config = config
+	if err := c.checkPublishingAccess(ctx); err != nil {
+		return hostingCloudflare{}, err
 	}
-	return h.save(st)
+	return config, nil
 }
 
 func (h *Hosting) preview(ctx context.Context, st hostingState, keys hostingSecrets, site hostingSite, req hostingRequest, dashboardHost string) (hostingPreview, error) {
