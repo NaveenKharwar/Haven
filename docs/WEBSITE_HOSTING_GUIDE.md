@@ -95,10 +95,10 @@ If the page does not open, check that the install job finished and the SSH termi
    ![Coolify API Tokens page with the New token button marked](images/coolify-api-tokens.png)
 
 3. Enter a description, such as `Haven integration`.
-4. Under **Permissions**, select **Read**, **Write**, and **Deploy**. Leave the other permissions unchecked.
+4. Under **Permissions**, select **Read**, **Write**, **Deploy**, and **Delete**. Delete permission is used only when you confirm removal of a Haven-managed website. Leave the other permissions unchecked.
 5. Under **Access**, choose access to the team resources Haven will manage. Select an expiration and keep a reminder to rotate the token before it expires.
 
-   ![Coolify token form with Read, Write, and Deploy selected](images/coolify-token-permissions.png)
+   ![Coolify token permissions form](images/coolify-token-permissions.png)
 
 6. Select **Create token**.
 7. Copy the token from the window that appears. Keep it available for the next step. Coolify shows the full token only once.
@@ -208,5 +208,11 @@ Cloudflare Tunnel uses an outbound connection from your server. Router port forw
 ## 11. Unpublish
 
 On the site card, select **Unpublish** and confirm. Haven removes its public route and DNS record while keeping the site and its data. Check the private SSH address again.
+
+## 12. Remove sites, disconnect, or uninstall Coolify
+
+- **Remove a website:** unpublish it first, then select **Remove website**. This permanently removes its Coolify service, website files, database and service data.
+- **Disconnect Haven:** open **Coolify → Connection settings**, revoke the Haven token in Coolify, then select **Disconnect Haven**. Haven requires every managed website to be removed first and erases its saved connection and token.
+- **Uninstall Coolify:** remove every resource in Coolify, then open **Connection settings → Uninstall Coolify**. Haven verifies that Coolify manages no resources and requires the typed confirmation `UNINSTALL COOLIFY`. It then removes the Coolify control stack, Docker volumes, backups and `/data/coolify`.
 
 For direct publishing, backups, recovery, and troubleshooting, see the [technical guide](HOSTING.md). For what has been tested, see the [testing checklist](HOSTING_TESTING.md).
