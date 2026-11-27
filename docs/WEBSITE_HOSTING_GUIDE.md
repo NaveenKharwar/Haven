@@ -213,6 +213,8 @@ On the site card, select **Unpublish** and confirm. Haven removes its public rou
 
 - **Remove a website:** unpublish it first, then select **Remove website**. This permanently removes its Coolify service, website files, database and service data.
 - **Disconnect Haven:** open **Coolify → Connection settings**, revoke the Haven token in Coolify, then select **Disconnect Haven**. Haven requires every managed website to be removed first and erases its saved connection and token.
-- **Uninstall Coolify:** remove every resource in Coolify, then open **Connection settings → Uninstall Coolify**. Haven verifies that Coolify manages no resources and requires the typed confirmation `UNINSTALL COOLIFY`. It then removes the Coolify control stack, Docker volumes, backups and `/data/coolify`.
+- **Uninstall Coolify:** this is an alternative to disconnecting and applies only to a same-server installation using the standard `/data/coolify` directory. Remove every resource in Coolify, then open **Connection settings → Uninstall Coolify**. Haven verifies that Coolify manages no resources and requires the typed confirmation `UNINSTALL COOLIFY`. It then removes the Coolify control stack, Docker volumes, backups and `/data/coolify`.
+
+Do not revoke the Coolify token or disconnect Haven before a full uninstall. Haven needs the active connection to verify that no resources remain. Revoke the token only when you are keeping Coolify and choosing **Disconnect Haven**.
 
 For direct publishing, backups, recovery, and troubleshooting, see the [technical guide](HOSTING.md). For what has been tested, see the [testing checklist](HOSTING_TESTING.md).
