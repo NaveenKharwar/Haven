@@ -6,7 +6,7 @@ Hosting is an experimental, administrator-only feature. This document records th
 
 | Area | Status | Evidence and limitation |
 | --- | --- | --- |
-| Coolify installation | Passed | Haven installed the pinned Coolify 4.7.6 release on a clean Linux VM and reached a healthy dashboard, database, and Redis service. |
+| Coolify installation | Partial | Haven installed Coolify 4.7.6 on a clean Linux VM and reached a healthy dashboard, database, and Redis service. The integration now pins 4.7.9 with automatic updates disabled; its API contract is compatible, but a clean 4.7.9 install still needs a live verification run. |
 | Existing Coolify detection | Passed | Running, partial, and absent installations are distinguished; a running installation is shown as connectable and duplicate installation is blocked by the backend. |
 | Interrupted installation recovery | Passed | Haven detected a genuinely interrupted installation and resumed the same pinned installer without deleting existing data. |
 | Static HTML | Passed | A Haven-guided site deployed privately, answered through its loopback-only port, and retained recoverable source. |

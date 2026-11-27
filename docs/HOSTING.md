@@ -2,7 +2,7 @@
 
 New to Haven website hosting? Start with the [beginner-friendly website hosting guide](WEBSITE_HOSTING_GUIDE.md).
 
-Website hosting is an admin-only experimental preview for owners hosting their own websites. Haven uses Coolify 4.7.6 on the same Linux Docker host for deployment, storage, and lifecycle. The workflow remains opt-in while real homelab use finds edge cases and the remaining checks are completed. Cloudflare Tunnel, its narrow-token API lifecycle, guided Static HTML, modern-framework handoff and interrupted Coolify installation recovery have passed verification. Direct public HTTPS, natural certificate renewal, automated public Tunnel E2E, Ghost SMTP-assisted sign-in and full Ghost restore remain unverified. See the [verification checklist](HOSTING_TESTING.md) for exact evidence and limitations.
+Website hosting is an admin-only experimental preview for owners hosting their own websites. Haven uses Coolify 4.7.9 on the same Linux Docker host for deployment, storage, and lifecycle. The workflow remains opt-in while real homelab use finds edge cases and the remaining checks are completed. Cloudflare Tunnel, its narrow-token API lifecycle, guided Static HTML, modern-framework handoff and interrupted Coolify installation recovery have passed verification. Direct public HTTPS, natural certificate renewal, automated public Tunnel E2E, Ghost SMTP-assisted sign-in and full Ghost restore remain unverified. See the [verification checklist](HOSTING_TESTING.md) for exact evidence and limitations.
 
 ## Prepare the host
 
@@ -14,7 +14,7 @@ Open **Hosting** as an administrator. The new-platform preflight checks Linux an
 
 Enable the Coolify API and create a token with read, write, deploy, and delete permissions. Delete is used only for confirmed removal of Haven-managed services. Use a Coolify team administrator token for direct publishing so Haven can check the team's DNS integrations. Add `read:sensitive` only if you need Coolify logs in Haven. Discover the local server, project, environment, and destination in Hosting. Use the loopback dashboard origin for HTTP. Access it from another device with an SSH port forward. An existing HTTPS dashboard origin must be trusted by Haven.
 
-See [Coolify installation](https://coolify.io/docs/get-started/installation), [the pinned release](https://github.com/coollabsio/coolify/releases/tag/v4.7.6), and [Coolify API permissions](https://coolify.io/docs/api/permissions).
+See [Coolify installation](https://coolify.io/docs/get-started/installation), [the pinned release](https://github.com/coollabsio/coolify/releases/tag/v4.7.9), and [Coolify API permissions](https://coolify.io/docs/api/permissions).
 
 ## Install a private website
 

@@ -377,6 +377,27 @@ func TestHostingPrivateCoolifyInstallContract(t *testing.T) {
 	}
 }
 
+func TestCoolifyClientRequiresSupportedVersion(t *testing.T) {
+	version := "v" + coolifyHostingVersion
+	client := coolifyClient{
+		connection: hostingConnection{URL: "https://coolify.example.com"},
+		token:      "test-coolify-api-token",
+		client: &http.Client{Transport: hostingTestTransport(func(r *http.Request) (int, any) {
+			if r.URL.Path != "/api/v1/version" {
+				t.Fatalf("unexpected Coolify request: %s %s", r.Method, r.URL.Path)
+			}
+			return http.StatusOK, version
+		})},
+	}
+	if err := client.validate(context.Background()); err != nil {
+		t.Fatalf("target Coolify version was rejected: %v", err)
+	}
+	version = "v4.7.6"
+	if err := client.validate(context.Background()); err == nil || !strings.Contains(err.Error(), coolifyHostingVersion) {
+		t.Fatalf("older Coolify version was not rejected clearly: %v", err)
+	}
+}
+
 func TestHostingPublishNeedsAdminAndMatchingReview(t *testing.T) {
 	t.Setenv("HAVEN_HOSTING_EXPERIMENTAL", "1")
 	server, clients, store := roleServer(t)
