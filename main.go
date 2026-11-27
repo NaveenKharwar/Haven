@@ -5,7 +5,6 @@ import (
 	"context"
 	"embed"
 	"errors"
-	"flag"
 	"fmt"
 	"io/fs"
 	"log"
@@ -28,54 +27,16 @@ var Version = "0.1.0-dev"
 var webFS embed.FS
 
 func main() {
-	addr := flag.String("addr", ":8484", "address to listen on")
-	dataDir := flag.String("data", "/opt/haven", "directory for Haven's state and apps")
-	showVersion := flag.Bool("version", false, "print the version and exit")
-	resetPassUser := flag.String("reset-password", "", "reset password for user (e.g. -reset-password admin)")
-	resetTokenCmd := flag.Bool("reset-token", false, "generate a one-time password reset code")
+	cmd := newRootCommand(os.Stdin, os.Stdout, os.Stderr, runServer)
+	cmd.SetArgs(normalizeLegacyCLIArgs(os.Args[1:]))
+	if err := cmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(1)
+	}
+}
 
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "reset-password":
-			user := ""
-			if len(os.Args) > 2 {
-				user = os.Args[2]
-			}
-			runResetPassword(*dataDir, user)
-			return
-		case "reset-token":
-			runResetToken(*dataDir)
-			return
-		case "hosting":
-			if err := runHostingCLI(os.Args[2:], os.Stdout); err != nil {
-				fmt.Fprintln(os.Stderr, "haven hosting:", err)
-				os.Exit(1)
-			}
-			return
-		case "experimental", "experiments":
-			if err := runExperimentalCLI(os.Args[2:], os.Stdin, os.Stdout); err != nil {
-				fmt.Fprintln(os.Stderr, "haven experimental:", err)
-				os.Exit(1)
-			}
-			return
-		}
-	}
-
-	flag.Parse()
-	if *showVersion {
-		fmt.Printf("haven %s\n", Version)
-		return
-	}
-	if *resetTokenCmd {
-		runResetToken(*dataDir)
-		return
-	}
-	if *resetPassUser != "" {
-		runResetPassword(*dataDir, *resetPassUser)
-		return
-	}
-
-	dir, err := filepath.Abs(*dataDir)
+func runServer(addr, dataDir string) {
+	dir, err := filepath.Abs(dataDir)
 	if err != nil {
 		log.Fatalf("bad data dir: %v", err)
 	}
@@ -130,7 +91,7 @@ func main() {
 	sessions := NewSessions(filepath.Join(dir, "sessions.json"))
 	srv := NewServer(store, sessions, apps, catalog, sys, jobs, docker, dist)
 	go srv.hosting.run(context.Background())
-	_, port, _ := net.SplitHostPort(*addr)
+	_, port, _ := net.SplitHostPort(addr)
 	if port == "" {
 		port = "8484"
 	}
@@ -180,14 +141,14 @@ func main() {
 	}
 
 	httpSrv := &http.Server{
-		Addr:              *addr,
+		Addr:              addr,
 		Handler:           handler,
 		ConnState:         srv.access.ConnState(port),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	go func() {
-		log.Printf("%s %s listening on %s (data: %s)", AppName, Version, *addr, dir)
+		log.Printf("%s %s listening on %s (data: %s)", AppName, Version, addr, dir)
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("server error: %v", err)
 		}
