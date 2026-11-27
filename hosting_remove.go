@@ -114,6 +114,10 @@ func (h *Hosting) uninstallCoolify(ctx context.Context, j *Job, st hostingState,
 	if err := run(ctx, j, args...); err != nil {
 		return fmt.Errorf("stop Coolify: %w", err)
 	}
+	j.Logf("Removing Coolify's shared Docker network.")
+	if err := run(ctx, j, "docker", "network", "rm", "coolify"); err != nil {
+		return fmt.Errorf("remove Coolify network: %w", err)
+	}
 	if err := os.RemoveAll(root); err != nil {
 		return fmt.Errorf("remove Coolify data: %w", err)
 	}
