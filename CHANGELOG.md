@@ -4,6 +4,8 @@ Each release's notes come from its section here. Add a `## <version>` section be
 
 ## Unreleased
 
+- Replaced bare `haven` foreground startup with a structured Cobra CLI, explicit service lifecycle and log commands, visible experimental-feature commands, shell completion, and an explicit `haven serve` mode while preserving legacy service flags.
+
 ## 0.1.40
 
 - Added actionable explanations and recovery steps to Hosting installation checks, including a safe inline flow when Haven occupies port 80.
