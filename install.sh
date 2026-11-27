@@ -75,7 +75,7 @@ After=network-online.target docker.service
 Wants=network-online.target docker.service
 
 [Service]
-ExecStart=/usr/local/bin/haven --addr :$PORT --data $DATA
+ExecStart=/usr/local/bin/haven serve --addr :$PORT --data $DATA
 Environment=HAVEN_PUID=$PUID
 Environment=HAVEN_PGID=$PGID
 Restart=always

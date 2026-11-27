@@ -32,11 +32,11 @@ func cloudflareTestResponse(result any) map[string]any {
 }
 
 func TestHostingPortCheckGuidesHavenPort80Recovery(t *testing.T) {
-	check := hostingPortCheck(80, false, true, false)
+	check := hostingPortCheck(80, false, true, false, false)
 	if check.OK || check.Action != "disable-haven-port-80" || !strings.Contains(check.Info, "Haven is configured") || check.Details == "" || check.Fix == "" {
 		t.Fatalf("unexpected Haven port 80 check: %+v", check)
 	}
-	check = hostingPortCheck(443, false, true, true)
+	check = hostingPortCheck(443, false, true, true, false)
 	if !check.Recoverable || check.Action != "" {
 		t.Fatalf("unexpected partial Coolify port check: %+v", check)
 	}
@@ -252,6 +252,31 @@ func TestHostingCleanupWorksWhileExperimentalFeatureIsOff(t *testing.T) {
 	saved, keys, err := h.load()
 	if err != nil || saved.Coolify.URL != "" || keys.Coolify != "" {
 		t.Fatalf("cleanup did not clear connection: state=%+v keys=%+v err=%v", saved, keys, err)
+	}
+}
+
+func TestDetectCoolifyInstallationStates(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		envFile    bool
+		containers []Container
+		want       string
+	}{
+		{name: "new host", want: "not-installed"},
+		{name: "files only", envFile: true, want: "partial"},
+		{name: "stopped stack", containers: []Container{{Name: "coolify", State: "exited", Project: "coolify"}}, want: "partial"},
+		{name: "running stack", containers: []Container{{Name: "coolify", State: "running", Project: "coolify"}}, want: "running"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := detectCoolifyInstallation(tc.envFile, tc.containers).Status; got != tc.want {
+				t.Fatalf("status = %q, want %q", got, tc.want)
+			}
+		})
+	}
+
+	runningPort := hostingPortCheck(8000, false, false, false, true)
+	if !runningPort.OK || !strings.Contains(runningPort.Info, "running Coolify") || runningPort.Fix != "" {
+		t.Fatalf("running Coolify port was treated as blocked: %+v", runningPort)
 	}
 }
 

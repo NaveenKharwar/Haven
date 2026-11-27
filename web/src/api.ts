@@ -359,7 +359,11 @@ export type HostingSite = {
   phase: 'installing' | 'installed'; deployment?: 'queued' | 'deploying' | 'ready' | 'failed'; lastError?: string
   publication?: HostingPublication
 }
-export type HostingState = { enabled: boolean; version: string; coolify: HostingConnection; cloudflare: { account: string; zone: string; name: string }; sites: HostingSite[] }
+export type HostingState = {
+  enabled: boolean; version: string; coolify: HostingConnection
+  coolifyInstallation: { status: 'not-installed' | 'partial' | 'running' }
+  cloudflare: { account: string; zone: string; name: string }; sites: HostingSite[]
+}
 export type HostingCloudflare = HostingState['cloudflare']
 export type HostingTemplate = { id: string; name: string; description: string; guided: boolean }
 export type HostingReview = { id: string; site: string; expiry: string; plan: HostingPublication }

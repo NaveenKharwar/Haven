@@ -36,9 +36,10 @@ func (s *Server) hostingRead(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, struct {
 			hostingState
-			Enabled bool   `json:"enabled"`
-			Version string `json:"version"`
-		}{st, h.enabled, coolifyHostingVersion})
+			Enabled             bool                `json:"enabled"`
+			Version             string              `json:"version"`
+			CoolifyInstallation coolifyInstallation `json:"coolifyInstallation"`
+		}{st, h.enabled, coolifyHostingVersion, h.coolifyInstallation(ctx)})
 		return
 	}
 	if !h.enabled {

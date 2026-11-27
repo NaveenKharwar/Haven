@@ -56,6 +56,10 @@ Haven installs the supported Coolify version for you. You do not need to install
 
 Keep ports 8000, 6001 and 6002 private; do not forward them on your router. Create the first Coolify account promptly, because anyone who can reach its registration page may be able to claim it.
 
+When Coolify is running, Haven shows its browser dashboard address separately from Haven's internal connection address.
+
+![Haven Hosting showing a running Coolify installation, its browser dashboard address and Haven's internal connection](images/hosting-coolify-running.png)
+
 ## 3. Open Coolify and create an account
 
 1. On your own computer, open Terminal (macOS/Linux) or Windows Terminal. Run the command below, replacing `SSH_USER` with your server login username and `SERVER_ADDRESS` with your server's private IP or SSH address. For example, if the username is `alex` and the private address is `192.168.1.20`, the end of the command is `alex@192.168.1.20`.
@@ -65,7 +69,7 @@ ssh -N -L 127.0.0.1:8000:127.0.0.1:8000 SSH_USER@SERVER_ADDRESS
 ```
 
 2. If SSH asks you to verify the server fingerprint, check it with your server administrator before accepting. Sign in if prompted. Leave this terminal open: it keeps a private connection to Coolify. A blank terminal is normal.
-3. On the **same computer**, open [http://127.0.0.1:8000](http://127.0.0.1:8000). This address reaches Coolify through the SSH connection, not through a public router port.
+3. On the **same computer**, open [http://127.0.0.1:8000](http://127.0.0.1:8000). This address reaches Coolify through the SSH connection, not through a public router port. If your LAN allows direct access, Haven also shows a browser dashboard address such as `http://192.168.1.20:8000`; use the exact address Haven shows rather than this example.
 4. Create your Coolify administrator account with your own name, email and a strong password. Save the password securely; it is separate from your Haven login.
 5. In the welcome screen, select **Continue**, then **This machine**. This selects the Linux server running Haven and Coolify.
 6. At **Project Setup**, select **Create "My First Project"**. Coolify creates a project and a production environment for your websites.
@@ -107,7 +111,7 @@ Return to **Haven → Hosting**.
 
 ![Haven light-mode Coolify connection form with the token visibility control, discovered resources and save controls highlighted](images/hosting-coolify-light.png)
 
-1. **Dashboard URL** — leave `http://127.0.0.1:8000`. Haven uses this address on the server itself; it is not your site's public address.
+1. **Haven connection URL** — leave `http://127.0.0.1:8000`. Haven uses this internal address on the server itself. It is different from the dashboard address you open in your browser and is not your site's public address.
 2. **Coolify API token** — paste the token you just copied. Use the eye button to check what you entered, then hide it again before continuing if anyone else can see your screen.
 3. Select **Load resources**. Choose the local server, usually **localhost**, and your project.
 4. Select **Load resources** again. Choose the environment, usually **production**. Choose a destination if one is offered.

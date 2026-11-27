@@ -4,6 +4,9 @@ Each release's notes come from its section here. Add a `## <version>` section be
 
 ## Unreleased
 
+- Replaced bare `haven` foreground startup with a structured Cobra CLI, explicit service lifecycle and log commands, visible experimental-feature commands, shell completion, and an explicit `haven serve` mode while preserving legacy service flags.
+- Added a dedicated running-Coolify Hosting state that hides new-install checks, separates the browser dashboard address from Haven's internal loopback connection, and prevents duplicate installation at the backend.
+- Standardized inline error and status messages so their indicators align with both single-line and wrapped text across the dashboard and TV interface.
 - Added guarded flows to remove Haven-managed websites, disconnect and forget Coolify credentials, and fully uninstall an empty local Coolify installation.
 
 ## 0.1.40
