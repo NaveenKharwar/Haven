@@ -75,7 +75,8 @@ function coolifyDashboardURL(connectionURL = '') {
   if (!connectionURL) return `http://${currentHost}:8000`
   try {
     const configured = new URL(connectionURL)
-    if (!['127.0.0.1', 'localhost', '::1'].includes(configured.hostname)) return connectionURL
+    const configuredHost = configured.hostname.replace(/^\[|\]$/g, '')
+    if (!['127.0.0.1', 'localhost', '::1'].includes(configuredHost)) return connectionURL
     const port = configured.port || (configured.protocol === 'https:' ? '443' : '80')
     return `${configured.protocol}//${currentHost}:${port}`
   } catch {
@@ -141,7 +142,10 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
   const coolifyRunning = state.coolifyInstallation.status === 'running'
   const dashboardURL = coolifyDashboardURL(state.coolify.url)
   const connectionPort = (() => {
-    try { return new URL(state.coolify.url || connection.url).port || '8000' } catch { return '8000' }
+    try {
+      const configured = new URL(state.coolify.url || connection.url)
+      return configured.port || (configured.protocol === 'https:' ? '443' : '80')
+    } catch { return '8000' }
   })()
 
   return (
