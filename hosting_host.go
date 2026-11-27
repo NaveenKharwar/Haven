@@ -182,7 +182,7 @@ func (h *Hosting) installCoolify(ctx context.Context, j *Job, recover bool) erro
 	}
 	// The upstream installer also reads this argument to pin the platform image.
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet,
-		"https://raw.githubusercontent.com/coollabsio/coolify/b7cbdb480faa1a124423e3c3c886481848c96cf9/scripts/install.sh", nil)
+		"https://raw.githubusercontent.com/coollabsio/coolify/fb4bf6a3671e423e02e93591cd339b80f008d4f3/scripts/install.sh", nil)
 	resp, err := h.http.Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
 		if resp != nil {
@@ -203,7 +203,7 @@ func (h *Hosting) installCoolify(ctx context.Context, j *Job, recover bool) erro
 	if recover {
 		j.Logf("Resuming the partial installation with the same pinned Coolify release.")
 	}
-	if err := hostStream(ctx, j, nil, "bash", path, coolifyHostingVersion); err != nil {
+	if err := hostStream(ctx, j, []string{"AUTOUPDATE=false"}, "bash", path, coolifyHostingVersion); err != nil {
 		return errors.New("The Coolify installer failed. Inspect the install on the server before retrying, or connect it if setup finished.")
 	}
 	j.Logf("Finish account setup from the LAN or an SSH port forward, enable the Coolify API, then connect it here.")

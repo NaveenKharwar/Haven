@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-const coolifyHostingVersion = "4.7.6"
+const coolifyHostingVersion = "4.7.9"
 
 type hostingConnection struct {
 	URL         string `json:"url"`
