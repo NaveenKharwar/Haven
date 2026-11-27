@@ -297,6 +297,39 @@ func (c coolifyClient) action(ctx context.Context, site hostingSite, path string
 	return c.call(ctx, http.MethodPost, "/services/"+site.ServiceID+"/"+path, nil, nil)
 }
 
+func (c coolifyClient) remove(ctx context.Context, site hostingSite) error {
+	if site.ServiceID == "" {
+		var services []coolifyService
+		if err := c.call(ctx, http.MethodGet, "/services", nil, &services); err != nil {
+			return err
+		}
+		for _, candidate := range services {
+			if candidate.Description != site.marker() {
+				continue
+			}
+			if site.ServiceID != "" || !hostingID.MatchString(candidate.UUID) {
+				return errors.New("More than one Coolify resource may match this website. Review it in Coolify before removal.")
+			}
+			site.ServiceID = candidate.UUID
+		}
+		if site.ServiceID == "" {
+			return nil
+		}
+	}
+	if _, _, err := c.service(ctx, site); err != nil {
+		return err
+	}
+	return c.call(ctx, http.MethodDelete, "/services/"+site.ServiceID+"?delete_configurations=true&delete_volumes=true&docker_cleanup=true&delete_connected_networks=true", nil, nil)
+}
+
+func (c coolifyClient) resourceCount(ctx context.Context) (int, error) {
+	var resources []json.RawMessage
+	if err := c.call(ctx, http.MethodGet, "/resources", nil, &resources); err != nil {
+		return 0, err
+	}
+	return len(resources), nil
+}
+
 type hostingTemplate struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`

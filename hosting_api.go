@@ -16,7 +16,7 @@ func (s *Server) hostingRoutes(mux *http.ServeMux) {
 		mux.Handle("GET /api/hosting"+path, s.need(RoleAdmin, s.hostingRead))
 	}
 	for _, path := range []string{"/connect", "/discover", "/cloudflare", "/cloudflare/check", "/setup", "/sites", "/sites/{id}/retry",
-		"/sites/{id}/preview", "/sites/{id}/publish", "/sites/{id}/unpublish", "/sites/{id}/external"} {
+		"/disconnect", "/uninstall", "/sites/{id}/preview", "/sites/{id}/publish", "/sites/{id}/unpublish", "/sites/{id}/remove", "/sites/{id}/external"} {
 		mux.Handle("POST /api/hosting"+path, s.need(RoleAdmin, s.hostingWrite))
 	}
 }
@@ -112,11 +112,15 @@ type hostingRequest struct {
 	Confirm    bool   `json:"confirm"`
 	Recover    bool   `json:"recover"`
 	ProxySafe  bool   `json:"proxySafe"`
+	Phrase     string `json:"phrase"`
+	Revoked    bool   `json:"revoked"`
 }
 
 func (s *Server) hostingWrite(w http.ResponseWriter, r *http.Request) {
 	h := s.hosting
-	if !h.enabled && r.Pattern != "POST /api/hosting/sites/{id}/unpublish" {
+	cleanup := r.Pattern == "POST /api/hosting/disconnect" || r.Pattern == "POST /api/hosting/uninstall" ||
+		r.Pattern == "POST /api/hosting/sites/{id}/unpublish" || r.Pattern == "POST /api/hosting/sites/{id}/remove"
+	if !h.enabled && !cleanup {
 		jsonError(w, http.StatusServiceUnavailable, "Website hosting is disabled on this server.")
 		return
 	}
@@ -168,6 +172,33 @@ func (s *Server) hostingWrite(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, result)
+	case "POST /api/hosting/disconnect":
+		if !req.Confirm || !req.Revoked {
+			fail(errors.New("Revoke the Haven token in Coolify and confirm that it is revoked."))
+			return
+		}
+		if err := h.disconnectCoolify(st, keys); err != nil {
+			fail(err)
+			return
+		}
+		s.audit(r, "website hosting: disconnect Coolify")
+		writeJSON(w, http.StatusOK, map[string]bool{"disconnected": true})
+	case "POST /api/hosting/uninstall":
+		if !req.Confirm || req.Phrase != "UNINSTALL COOLIFY" {
+			fail(errors.New("Type UNINSTALL COOLIFY to confirm permanent removal."))
+			return
+		}
+		if len(st.Sites) > 0 {
+			fail(errors.New("Remove every Haven-managed website before uninstalling Coolify."))
+			return
+		}
+		if st.Coolify.URL == "" || keys.Coolify == "" {
+			fail(errors.New("Connect Coolify before uninstalling it so Haven can verify that no resources remain."))
+			return
+		}
+		startFor("uninstall-coolify", 15*time.Minute, func(ctx context.Context, j *Job) error {
+			return h.uninstallCoolify(ctx, j, st, keys, "/data/coolify", runHostingHostCommand)
+		})
 	case "POST /api/hosting/cloudflare":
 		if err := h.connectCloudflare(ctx, st, keys, req); err != nil {
 			fail(err)
@@ -267,6 +298,20 @@ func (s *Server) hostingWrite(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			start("unpublish", func(ctx context.Context, j *Job) error { return h.unpublish(ctx, j, st, keys, site) })
+		case "POST /api/hosting/sites/{id}/remove":
+			if !req.Confirm {
+				fail(errors.New("Confirm permanent removal of this website and its data."))
+				return
+			}
+			if site.Publication != nil {
+				fail(errors.New("Unpublish this website before removing it."))
+				return
+			}
+			if st.Coolify.URL == "" || keys.Coolify == "" {
+				fail(errors.New("Connect Coolify before removing this website."))
+				return
+			}
+			start("remove", func(ctx context.Context, j *Job) error { return h.removeSite(ctx, j, st, keys, site) })
 		case "POST /api/hosting/sites/{id}/external":
 			if !req.Confirm || site.Publication == nil || site.Publication.Mode != "direct" || site.Publication.Phase != "configured" {
 				fail(errors.New("Confirm that you reached this exact HTTPS website from outside your LAN and Tailscale."))

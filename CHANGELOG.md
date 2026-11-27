@@ -4,6 +4,8 @@ Each release's notes come from its section here. Add a `## <version>` section be
 
 ## Unreleased
 
+- Added guarded flows to remove Haven-managed websites, disconnect and forget Coolify credentials, and fully uninstall an empty local Coolify installation.
+
 ## 0.1.40
 
 - Added actionable explanations and recovery steps to Hosting installation checks, including a safe inline flow when Haven occupies port 80.

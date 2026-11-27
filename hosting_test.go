@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -38,6 +39,219 @@ func TestHostingPortCheckGuidesHavenPort80Recovery(t *testing.T) {
 	check = hostingPortCheck(443, false, true, true)
 	if !check.Recoverable || check.Action != "" {
 		t.Fatalf("unexpected partial Coolify port check: %+v", check)
+	}
+}
+
+func TestHostingDisconnectRequiresNoManagedSites(t *testing.T) {
+	store, err := LoadStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := newHosting(store, nil, &Docker{})
+	connected := hostingState{Coolify: hostingConnection{URL: "https://coolify.example.com"}, Sites: []hostingSite{{ID: "site-one"}}}
+	keys := hostingSecrets{Coolify: "coolify-token", CoolifyOrigin: connected.Coolify.URL}
+	if err := h.disconnectCoolify(connected, keys); err == nil || !strings.Contains(err.Error(), "Remove every") {
+		t.Fatalf("disconnect with a managed site returned %v", err)
+	}
+	connected.Sites = nil
+	if err := h.disconnectCoolify(connected, keys); err != nil {
+		t.Fatal(err)
+	}
+	state, savedKeys, err := h.load()
+	if err != nil || state.Coolify.URL != "" || savedKeys.Coolify != "" || savedKeys.CoolifyOrigin != "" {
+		t.Fatalf("disconnect did not clear connection and credentials: state=%+v keys=%+v err=%v", state, savedKeys, err)
+	}
+}
+
+func TestHostingRemoveSiteDeletesOwnedCoolifyService(t *testing.T) {
+	store, err := LoadStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	site := hostingSite{ID: "site-one", Name: "One", Template: "static-html", ServiceID: "service-one", Phase: "installed"}
+	state := hostingState{Coolify: hostingConnection{URL: "https://coolify.example.com"}, Sites: []hostingSite{site}}
+	seenDelete := false
+	h := newHosting(store, nil, &Docker{})
+	h.http = &http.Client{Transport: hostingTestTransport(func(r *http.Request) (int, any) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/services/service-one":
+			return 200, coolifyService{UUID: site.ServiceID, Description: site.marker(), Apps: []coolifyApplication{{UUID: "app-one", Name: "web"}}}
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/services/service-one":
+			for _, key := range []string{"delete_configurations", "delete_volumes", "docker_cleanup", "delete_connected_networks"} {
+				if r.URL.Query().Get(key) != "true" {
+					t.Fatalf("Coolify deletion did not enable %s", key)
+				}
+			}
+			seenDelete = true
+			return 204, nil
+		default:
+			t.Fatalf("unexpected Coolify request: %s %s", r.Method, r.URL.Path)
+			return 500, nil
+		}
+	})}
+	if err := h.save(state); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.saveStaticSite(site.ID, "<!doctype html><title>One</title>"); err != nil {
+		t.Fatal(err)
+	}
+	keys := hostingSecrets{Coolify: "coolify-token", CoolifyOrigin: state.Coolify.URL}
+	if err := h.removeSite(context.Background(), &Job{}, state, keys, &site); err != nil {
+		t.Fatal(err)
+	}
+	saved, _, err := h.load()
+	if err != nil || !seenDelete || len(saved.Sites) != 0 {
+		t.Fatalf("site removal incomplete: deleted=%v state=%+v err=%v", seenDelete, saved, err)
+	}
+	if _, err := os.Stat(filepath.Dir(h.staticSitePath(site.ID))); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("saved static source remains after removal: %v", err)
+	}
+}
+
+func TestHostingRemoveSiteRequiresUnpublish(t *testing.T) {
+	store, err := LoadStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := newHosting(store, nil, &Docker{})
+	site := hostingSite{ID: "site-one", ServiceID: "service-one", Publication: &hostingPublication{Host: "one.example.com"}}
+	err = h.removeSite(context.Background(), &Job{}, hostingState{}, hostingSecrets{}, &site)
+	if err == nil || !strings.Contains(err.Error(), "Unpublish") {
+		t.Fatalf("published site removal returned %v", err)
+	}
+}
+
+func TestHostingRemoveSiteRejectsChangedCoolifyService(t *testing.T) {
+	store, err := LoadStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	site := hostingSite{ID: "site-one", Name: "One", Template: "static-html", ServiceID: "service-one", Phase: "installed"}
+	state := hostingState{Coolify: hostingConnection{URL: "https://coolify.example.com"}, Sites: []hostingSite{site}}
+	deleted := false
+	h := newHosting(store, nil, &Docker{})
+	h.http = &http.Client{Transport: hostingTestTransport(func(r *http.Request) (int, any) {
+		if r.Method == http.MethodDelete {
+			deleted = true
+		}
+		return 200, coolifyService{UUID: site.ServiceID, Description: "changed", Apps: []coolifyApplication{{UUID: "app-one", Name: "web"}}}
+	})}
+	keys := hostingSecrets{Coolify: "coolify-token", CoolifyOrigin: state.Coolify.URL}
+	err = h.removeSite(context.Background(), &Job{}, state, keys, &site)
+	if err == nil || !strings.Contains(err.Error(), "no longer matches") || deleted {
+		t.Fatalf("changed service removal was not blocked: err=%v deleted=%v", err, deleted)
+	}
+}
+
+func TestHostingRemovePendingSiteWithoutCoolifyService(t *testing.T) {
+	store, err := LoadStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	site := hostingSite{ID: "pending-site", Name: "Pending", Template: "static-html", Phase: "installing"}
+	state := hostingState{Coolify: hostingConnection{URL: "https://coolify.example.com"}, Sites: []hostingSite{site}}
+	h := newHosting(store, nil, &Docker{})
+	h.http = &http.Client{Transport: hostingTestTransport(func(r *http.Request) (int, any) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/services" {
+			t.Fatalf("unexpected Coolify request: %s %s", r.Method, r.URL.Path)
+		}
+		return 200, []coolifyService{}
+	})}
+	if err := h.save(state); err != nil {
+		t.Fatal(err)
+	}
+	keys := hostingSecrets{Coolify: "coolify-token", CoolifyOrigin: state.Coolify.URL}
+	if err := h.removeSite(context.Background(), &Job{}, state, keys, &site); err != nil {
+		t.Fatal(err)
+	}
+	saved, _, err := h.load()
+	if err != nil || len(saved.Sites) != 0 {
+		t.Fatalf("pending site record remains: state=%+v err=%v", saved, err)
+	}
+}
+
+func TestHostingUninstallChecksResourcesAndRemovesOnlyChosenRoot(t *testing.T) {
+	store, err := LoadStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := newHosting(store, nil, &Docker{})
+	h.http = &http.Client{Transport: hostingTestTransport(func(r *http.Request) (int, any) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/resources" {
+			t.Fatalf("unexpected Coolify request: %s %s", r.Method, r.URL.Path)
+		}
+		return 200, []any{}
+	})}
+	root := filepath.Join(t.TempDir(), "coolify")
+	source := filepath.Join(root, "source")
+	if err := os.MkdirAll(source, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{".env", "docker-compose.yml", "docker-compose.prod.yml", "docker-compose.custom.yml"} {
+		if err := os.WriteFile(filepath.Join(source, name), []byte("test"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	state := hostingState{Coolify: hostingConnection{URL: "https://coolify.example.com"}}
+	keys := hostingSecrets{Coolify: "coolify-token", CoolifyOrigin: state.Coolify.URL}
+	var command []string
+	run := func(_ context.Context, _ *Job, args ...string) error {
+		command = append([]string(nil), args...)
+		return nil
+	}
+	if err := h.uninstallCoolify(context.Background(), &Job{}, state, keys, root, run); err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(command, " ")
+	for _, want := range []string{"docker compose", "--env-file " + filepath.Join(source, ".env"), "-f " + filepath.Join(source, "docker-compose.custom.yml"), "down --volumes --remove-orphans"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("uninstall command %q missing %q", joined, want)
+		}
+	}
+	if _, err := os.Stat(root); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Coolify root remains after uninstall: %v", err)
+	}
+}
+
+func TestHostingUninstallRefusesRemainingResources(t *testing.T) {
+	store, err := LoadStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := newHosting(store, nil, &Docker{})
+	h.http = &http.Client{Transport: hostingTestTransport(func(*http.Request) (int, any) { return 200, []any{map[string]string{"uuid": "other"}} })}
+	state := hostingState{Coolify: hostingConnection{URL: "https://coolify.example.com"}}
+	keys := hostingSecrets{Coolify: "coolify-token", CoolifyOrigin: state.Coolify.URL}
+	called := false
+	err = h.uninstallCoolify(context.Background(), &Job{}, state, keys, t.TempDir(), func(context.Context, *Job, ...string) error { called = true; return nil })
+	if err == nil || !strings.Contains(err.Error(), "still manages 1 resource") || called {
+		t.Fatalf("unsafe uninstall result: err=%v runnerCalled=%v", err, called)
+	}
+}
+
+func TestCoolifyComposeArgsRejectsUnsafeRoot(t *testing.T) {
+	if _, err := coolifyComposeArgs(t.TempDir()); err == nil || !strings.Contains(err.Error(), "unsafe data path") {
+		t.Fatalf("unsafe uninstall root returned %v", err)
+	}
+}
+
+func TestHostingCleanupWorksWhileExperimentalFeatureIsOff(t *testing.T) {
+	t.Setenv("HAVEN_HOSTING_EXPERIMENTAL", "")
+	server, clients, store := roleServer(t)
+	h := newHosting(store, nil, nil)
+	state := hostingState{Coolify: hostingConnection{URL: "https://coolify.example.com"}}
+	if err := h.save(state); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.write("secrets.json", hostingSecrets{Coolify: "coolify-token", CoolifyOrigin: state.Coolify.URL}); err != nil {
+		t.Fatal(err)
+	}
+	if got := call(t, clients["boss"], http.MethodPost, server.URL+"/api/hosting/disconnect", `{"confirm":true,"revoked":true}`); got != http.StatusOK {
+		t.Fatalf("cleanup while Hosting is off returned %d", got)
+	}
+	saved, keys, err := h.load()
+	if err != nil || saved.Coolify.URL != "" || keys.Coolify != "" {
+		t.Fatalf("cleanup did not clear connection: state=%+v keys=%+v err=%v", saved, keys, err)
 	}
 }
 
@@ -147,8 +361,15 @@ func TestHostingPublishNeedsAdminAndMatchingReview(t *testing.T) {
 		{"mia", "", "", http.StatusForbidden},
 		{"mia", "/sites", `{"confirm":true}`, http.StatusForbidden},
 		{"mia", "/sites/persisted-site/publish", `{"confirm":true}`, http.StatusForbidden},
+		{"mia", "/disconnect", `{"confirm":true,"revoked":true}`, http.StatusForbidden},
 		{"boss", "/sites/persisted-site/publish", `{"confirm":true,"host":"example.com","review":"anything"}`, http.StatusBadRequest},
 		{"boss", "/sites/persisted-site/publish", `{"confirm":false}`, http.StatusBadRequest},
+		{"boss", "/sites/persisted-site/remove", `{"confirm":false}`, http.StatusBadRequest},
+		{"boss", "/disconnect", `{"confirm":false}`, http.StatusBadRequest},
+		{"boss", "/disconnect", `{"confirm":true,"revoked":false}`, http.StatusBadRequest},
+		{"boss", "/disconnect", `{"confirm":true,"revoked":true}`, http.StatusBadRequest},
+		{"boss", "/uninstall", `{"confirm":true,"phrase":"wrong"}`, http.StatusBadRequest},
+		{"boss", "/uninstall", `{"confirm":true,"phrase":"UNINSTALL COOLIFY"}`, http.StatusBadRequest},
 	} {
 		method := http.MethodPost
 		if tc.body == "" {

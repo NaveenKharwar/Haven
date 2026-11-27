@@ -80,6 +80,10 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
   const [install, setInstall] = useState(false)
   const [recover, setRecover] = useState(false)
   const [edit, setEdit] = useState(false)
+  const [disconnect, setDisconnect] = useState(false)
+  const [revoked, setRevoked] = useState(false)
+  const [uninstall, setUninstall] = useState(false)
+  const [uninstallPhrase, setUninstallPhrase] = useState('')
   const { busy, error, run } = useHostingAction()
   const set = (key: keyof HostingConnection, value: string) => setConnection((prev) => ({ ...prev, [key]: value }))
   const discover = () => run(() => hostingApi.discover(connection, token), (result) => {
@@ -145,7 +149,7 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
           <form className="space-y-4" onSubmit={submit}>
             {!state.coolify.url && <div className="max-w-2xl space-y-1">
               <h3 className="text-base font-semibold">Connect Coolify</h3>
-              <p className="text-sm text-ink-2">Use a team token with Read, Write and Deploy permissions.</p>
+              <p className="text-sm text-ink-2">Use a team token with Read, Write, Deploy and Delete permissions.</p>
             </div>}
             <Field label="Dashboard URL"><input className="field w-full" type="url" required value={connection.url} onChange={(e) => { set('url', e.target.value); setFound(undefined) }} /></Field>
             <TokenField id="coolify-api-token" label="Coolify API token" value={token} change={setToken} />
@@ -170,6 +174,10 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
               <button className={found ? 'key' : 'key key-primary'} type="button" disabled={busy || !connection.url || !token} data-loading={busy && !resourcesReady} onClick={discover}>{found ? 'Reload resources' : 'Load resources'}</button>
               {resourcesReady && <button className="key key-primary" disabled={busy} data-loading={busy}>Save connection</button>}
             </div>
+            {state.coolify.url && <div className="flex flex-wrap gap-2 border-t border-rule pt-4">
+              <button className="key" type="button" disabled={busy} onClick={() => { setRevoked(false); setDisconnect(true) }}>Disconnect Haven</button>
+              <button className="key key-danger" type="button" disabled={busy} onClick={() => { setUninstallPhrase(''); setUninstall(true) }}>Uninstall Coolify</button>
+            </div>}
           </form>
         )}
         {!state.coolify.url && !edit && (
@@ -228,6 +236,26 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
       }>
         <p className="text-sm">{recover ? 'Resume the supported installer without deleting existing Coolify data.' : 'Install the supported Coolify release and configure local deployments.'}</p>
         <ErrorLine>{error}</ErrorLine>
+      </Modal>
+      <Modal open={disconnect} onClose={() => !busy && setDisconnect(false)} title="Disconnect Haven from Coolify" footer={
+        <button className="key key-danger" disabled={busy || state.sites.length > 0 || !revoked} onClick={() => void run(hostingApi.disconnect, () => { setDisconnect(false); closeConnection(); refresh() })}>Disconnect Haven</button>
+      }>
+        <div className="space-y-3 text-sm">
+          <p>Revoke the Haven API token in Coolify, then remove its saved connection from Haven.</p>
+          <label className="flex items-start gap-2"><input className="mt-1" type="checkbox" checked={revoked} onChange={(e) => setRevoked(e.target.checked)} /> <span>I revoked the Haven token in Coolify.</span></label>
+          {state.sites.length > 0 && <Notice label="Websites remain">Remove every Haven-managed website before disconnecting.</Notice>}
+          <ErrorLine>{error}</ErrorLine>
+        </div>
+      </Modal>
+      <Modal open={uninstall} onClose={() => !busy && setUninstall(false)} title="Uninstall Coolify" footer={
+        <button className="key key-danger" disabled={busy || state.sites.length > 0 || uninstallPhrase !== 'UNINSTALL COOLIFY'} onClick={() => void run(() => hostingApi.uninstallCoolify(uninstallPhrase), ({ jobId }) => { setUninstall(false); closeConnection(); openJob(jobId, 'Uninstall Coolify') })}>Permanently uninstall Coolify</button>
+      }>
+        <div className="space-y-4 text-sm">
+          <p>This permanently removes Coolify’s control data, backups and Docker volumes. Haven refuses while Coolify still manages any resources.</p>
+          {state.sites.length > 0 && <Notice label="Websites remain">Remove every Haven-managed website first.</Notice>}
+          <Field label="Type UNINSTALL COOLIFY to confirm"><input className="field w-full" value={uninstallPhrase} onChange={(e) => setUninstallPhrase(e.target.value)} autoComplete="off" /></Field>
+          <ErrorLine>{error}</ErrorLine>
+        </div>
       </Modal>
     </Plate>
   )
@@ -431,7 +459,7 @@ function SiteRow({ site, state, refresh }: { site: HostingSite; state: HostingSt
   const [health, setHealth] = useState<HostingHealth>()
   const [logs, setLogs] = useState<string>()
   const [publish, setPublish] = useState(false)
-  const [confirm, setConfirm] = useState<'unpublish' | 'external'>()
+  const [confirm, setConfirm] = useState<'unpublish' | 'external' | 'remove'>()
   const { busy, error, run } = useHostingAction()
   const p = site.publication
   useEffect(() => { setHealth(undefined) }, [p?.phase, p?.host])
@@ -483,20 +511,23 @@ function SiteRow({ site, state, refresh }: { site: HostingSite; state: HostingSt
         </>}
         {state.enabled && site.phase === 'installed' && (!p || p.phase === 'publishing') && <button className="key key-sm key-primary" onClick={() => setPublish(true)}>{p ? 'Review and retry' : 'Publish website'}</button>}
         {p && <button className="key key-sm" onClick={() => setConfirm('unpublish')}>{p.phase === 'removing' ? 'Retry unpublish' : 'Unpublish'}</button>}
+        {!p && <button className="key key-sm key-danger" onClick={() => setConfirm('remove')}>Remove website</button>}
       </div>
       {!confirm && <ErrorLine>{error}</ErrorLine>}
       {publish && <PublishDialog site={site} cloudflare={!!state.cloudflare.name} onClose={() => setPublish(false)} refresh={refresh} />}
       <Modal open={logs !== undefined} onClose={() => setLogs(undefined)} title={site.name + ' logs'} wide>
         <pre className="well max-h-96 overflow-auto whitespace-pre-wrap break-words p-3 text-xs">{logs || 'Coolify returned no log lines.'}</pre>
       </Modal>
-      <Modal open={!!confirm} onClose={() => !busy && setConfirm(undefined)} title={confirm === 'external' ? 'Confirm external access' : 'Unpublish website'} footer={
-        <button className={confirm === 'unpublish' ? 'key key-danger' : 'key key-primary'} disabled={busy} onClick={() => {
+      <Modal open={!!confirm} onClose={() => !busy && setConfirm(undefined)} title={confirm === 'external' ? 'Confirm external access' : confirm === 'remove' ? 'Remove website' : 'Unpublish website'} footer={
+        <button className={confirm === 'external' ? 'key key-primary' : 'key key-danger'} disabled={busy} onClick={() => {
           if (confirm === 'external') void run(() => hostingApi.external(site.id), () => { setConfirm(undefined); refresh() })
           if (confirm === 'unpublish') void run(() => hostingApi.unpublish(site.id), ({ jobId }) => { setConfirm(undefined); refresh(); openJob(jobId, 'Unpublish website') })
-        }}>{confirm === 'external' ? 'I reached this site externally' : 'Confirm unpublish'}</button>
+          if (confirm === 'remove') void run(() => hostingApi.remove(site.id), ({ jobId }) => { setConfirm(undefined); refresh(); openJob(jobId, 'Remove website') })
+        }}>{confirm === 'external' ? 'I reached this site externally' : confirm === 'remove' ? 'Permanently remove website' : 'Confirm unpublish'}</button>
       }>
         <p className="break-words text-sm">{confirm === 'external' ? 'Confirm that ' + p?.host + ' opened over HTTPS from a separate internet connection with Tailscale off.' :
-          'Remove public access for ' + p?.host + '. Coolify keeps the website and its data.'}</p>
+          confirm === 'remove' ? 'Permanently remove ' + site.name + ' and its website, database and service data from Coolify.' :
+            'Remove public access for ' + p?.host + '. Coolify keeps the website and its data.'}</p>
         <ErrorLine>{error}</ErrorLine>
       </Modal>
     </li>
@@ -524,10 +555,10 @@ export default function HostingPage() {
       {state && (
         <>
           {!state.enabled && <Notice label="Hosting is off">Run <code className="break-all">sudo haven experimental</code> on the server and enable Website and App Hosting.</Notice>}
-          {state.enabled && (
+          {(state.enabled || !!state.coolify.url) && (
             <Sections>
               <CoolifySetup state={state} refresh={refresh} />
-              <CloudflareSetup state={state} refresh={refresh} />
+              {state.enabled && <CloudflareSetup state={state} refresh={refresh} />}
             </Sections>
           )}
           {state.coolify.url && (
