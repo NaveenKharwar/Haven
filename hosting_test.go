@@ -194,19 +194,25 @@ func TestHostingUninstallChecksResourcesAndRemovesOnlyChosenRoot(t *testing.T) {
 	}
 	state := hostingState{Coolify: hostingConnection{URL: "https://coolify.example.com"}}
 	keys := hostingSecrets{Coolify: "coolify-token", CoolifyOrigin: state.Coolify.URL}
-	var command []string
+	var commands [][]string
 	run := func(_ context.Context, _ *Job, args ...string) error {
-		command = append([]string(nil), args...)
+		commands = append(commands, append([]string(nil), args...))
 		return nil
 	}
 	if err := h.uninstallCoolify(context.Background(), &Job{}, state, keys, root, run); err != nil {
 		t.Fatal(err)
 	}
-	joined := strings.Join(command, " ")
+	if len(commands) != 2 {
+		t.Fatalf("uninstall ran %d commands, want 2: %v", len(commands), commands)
+	}
+	joined := strings.Join(commands[0], " ")
 	for _, want := range []string{"docker compose", "--env-file " + filepath.Join(source, ".env"), "-f " + filepath.Join(source, "docker-compose.custom.yml"), "down --volumes --remove-orphans"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("uninstall command %q missing %q", joined, want)
 		}
+	}
+	if got := strings.Join(commands[1], " "); got != "docker network rm coolify" {
+		t.Fatalf("network cleanup command = %q", got)
 	}
 	if _, err := os.Stat(root); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("Coolify root remains after uninstall: %v", err)
