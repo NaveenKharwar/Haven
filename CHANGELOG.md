@@ -4,6 +4,8 @@ Each release's notes come from its section here. Add a `## <version>` section be
 
 ## Unreleased
 
+## 0.1.42
+
 - Updated the Hosting integration to Coolify 4.7.9 and disabled automatic Coolify updates for new Haven-managed installations so they stay on the tested release.
 
 ## 0.1.41
