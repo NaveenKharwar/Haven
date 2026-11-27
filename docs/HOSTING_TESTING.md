@@ -7,6 +7,7 @@ Hosting is an experimental, administrator-only feature. This document records th
 | Area | Status | Evidence and limitation |
 | --- | --- | --- |
 | Coolify installation | Passed | Haven installed the pinned Coolify 4.7.6 release on a clean Linux VM and reached a healthy dashboard, database, and Redis service. |
+| Existing Coolify detection | Passed | Running, partial, and absent installations are distinguished; a running installation is shown as connectable and duplicate installation is blocked by the backend. |
 | Interrupted installation recovery | Passed | Haven detected a genuinely interrupted installation and resumed the same pinned installer without deleting existing data. |
 | Static HTML | Passed | A Haven-guided site deployed privately, answered through its loopback-only port, and retained recoverable source. |
 | WordPress | Passed for private use | Private deployment, retry, content restore, administrator sign-in, media, and reboot recovery were verified. |
@@ -17,7 +18,8 @@ Hosting is an experimental, administrator-only feature. This document records th
 | Direct HTTPS safeguards | Passed | Review binding, confirmation, DNS ownership, public-address validation, proxy checks, and Coolify automatic-DNS checks are covered. |
 | Direct public HTTPS | Unverified | The available test network is behind upstream NAT, so no end-to-end inbound HTTPS or direct certificate was claimed. No router or DNS change was made. |
 | Certificate renewal and public IP change | Unverified | Initial trusted HTTPS was verified for Tunnel publishing. A natural renewal cycle and managed direct-IP change were not completed. |
-| Responsive interface | Passed | The enabled Hosting page and Static HTML dialog rendered at desktop and 390 px mobile widths without horizontal overflow or console errors. |
+| Removal lifecycle | Automated; live destructive run pending | Ownership checks, published-site blocking, pending-site cleanup, disconnect guards, resource inventory blocking, typed confirmation, credential clearing, and uninstall path safety are covered. A full uninstall on a disposable Linux host remains required. |
+| Responsive interface | Passed | The enabled Hosting page, wrapped errors, and remove, disconnect, and uninstall dialogs rendered at desktop and 390 px mobile widths without horizontal overflow or console errors. |
 | Coolify control-plane restore | Passed with limitation | Coolify configuration and service records were restored in an isolated clone. Application databases and files still require their own coordinated backups. |
 
 ## Automated checks
@@ -29,6 +31,12 @@ The hosting tests cover:
 - administrator authorization and explicit publication review;
 - secret-file permissions and file-explorer symlink protection;
 - exact Cloudflare zone discovery;
+- running, partial, and absent Coolify installation detection;
+- duplicate-install prevention;
+- ownership-checked website deletion and pending-site cleanup;
+- published-site, managed-site, and remaining-resource removal guards;
+- token-revocation and typed uninstall confirmation requirements;
+- credential clearing, uninstall path safety, and cleanup while Hosting is disabled;
 - Tunnel route allowlisting and the final 404 fallback;
 - DNS ownership, conflict detection, retry, and cleanup;
 - hostname and public-address validation;
@@ -81,6 +89,7 @@ Use disposable Linux hosts and synthetic content. Keep credentials, provider ide
 - [ ] Run preflight on a clean supported Linux host.
 - [ ] Confirm setup cannot start without explicit approval.
 - [ ] Install or recover the pinned Coolify release.
+- [ ] Confirm a running Coolify installation is offered for connection and cannot be installed again.
 - [ ] Connect the local server, project, environment, and destination.
 - [ ] Deploy each guided template privately.
 - [ ] Confirm website ports bind only to loopback and databases publish no host ports.
@@ -94,6 +103,17 @@ Use disposable Linux hosts and synthetic content. Keep credentials, provider ide
 - [ ] Restore into an isolated host with public routes disconnected.
 - [ ] Verify sign-in, content, uploads, image compatibility, and storage ownership.
 - [ ] Confirm restored provider metadata cannot publish without a new explicit review.
+
+### Removal and uninstall
+
+- [ ] Unpublish a site, remove it, and confirm its Coolify service, volumes, configurations, networks, and Haven record are gone.
+- [ ] Confirm a published site cannot be removed and a changed ownership marker blocks deletion.
+- [ ] Recover or remove a pending Haven site without creating or deleting an unrelated service.
+- [ ] Confirm disconnect is blocked while Haven-managed sites remain.
+- [ ] Revoke the Haven token, confirm revocation in Haven, disconnect, and verify the saved connection and credentials are erased.
+- [ ] On a disposable same-server installation, confirm uninstall is blocked while any Coolify resource remains.
+- [ ] Remove all resources, type `UNINSTALL COOLIFY`, and verify the Coolify containers, volumes, backups, `/data/coolify`, and Haven credentials are removed.
+- [ ] Repeat cleanup with experimental Hosting disabled and confirm the removal controls remain available.
 
 ### Cloudflare Tunnel
 
