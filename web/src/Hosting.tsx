@@ -70,6 +70,20 @@ function useHostingAction() {
   return { busy, error, run }
 }
 
+function coolifyDashboardURL(connectionURL = '') {
+  const currentHost = window.location.hostname.includes(':') ? `[${window.location.hostname}]` : window.location.hostname
+  if (!connectionURL) return `http://${currentHost}:8000`
+  try {
+    const configured = new URL(connectionURL)
+    const configuredHost = configured.hostname.replace(/^\[|\]$/g, '')
+    if (!['127.0.0.1', 'localhost', '::1'].includes(configuredHost)) return connectionURL
+    const port = configured.port || (configured.protocol === 'https:' ? '443' : '80')
+    return `${configured.protocol}//${currentHost}:${port}`
+  } catch {
+    return connectionURL
+  }
+}
+
 function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => void }) {
   const { openJob } = useHaven()
   const [connection, setConnection] = useState<HostingConnection>({ ...state.coolify, url: state.coolify.url || 'http://127.0.0.1:8000' })
@@ -125,29 +139,57 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
   const host = window.location.hostname.includes(':') ? `[${window.location.hostname}]` : window.location.hostname
   const mainPortURL = havenPort ? `${window.location.protocol}//${host}:${havenPort}/hosting` : ''
   const onMainPort = window.location.port === havenPort
+  const coolifyRunning = state.coolifyInstallation.status === 'running'
+  const dashboardURL = coolifyDashboardURL(state.coolify.url)
+  const connectionPort = (() => {
+    try {
+      const configured = new URL(state.coolify.url || connection.url)
+      return configured.port || (configured.protocol === 'https:' ? '443' : '80')
+    } catch { return '8000' }
+  })()
 
   return (
     <Plate title="Coolify" tools={edit
       ? <button className="key key-sm" type="button" onClick={closeConnection}>{state.coolify.url ? 'Close' : 'Back'}</button>
       : state.coolify.url && <button className="key key-sm" type="button" onClick={() => setEdit(true)}>Connection settings</button>}>
       <div className="space-y-4 p-4 sm:p-5">
-        {state.coolify.url && <>
-          <p className="flex min-w-0 items-center gap-2 text-sm"><Led s="ok" /> <span className="break-all">{state.coolify.url}</span></p>
-          {new URL(state.coolify.url).hostname === '127.0.0.1' && (
-            <details className="text-sm">
-              <summary className="cursor-pointer text-ink-2">Open the private Coolify dashboard</summary>
-              <p className="mt-2">From another device, forward the dashboard port over SSH before opening the dashboard link.</p>
-              <code className="mt-2 block break-all text-xs">ssh -N -L {new URL(state.coolify.url).port || '80'}:127.0.0.1:{new URL(state.coolify.url).port || '80'} YOUR_SSH_USER@{window.location.hostname}</code>
-            </details>
-          )}
-        </>}
+        {(state.coolify.url || coolifyRunning) && !edit && <div className="space-y-4">
+          <div className="space-y-1">
+            <p className="flex min-w-0 items-center gap-2 text-sm font-medium"><Led s="ok" /> {state.coolify.url ? 'Coolify is connected to Haven' : 'Coolify is installed and running'}</p>
+            {!state.coolify.url && <p className="max-w-2xl text-sm text-ink-2">Finish account and API setup, then connect it to Haven.</p>}
+          </div>
+          <dl className="divide-y divide-rule border-y border-rule text-sm">
+            <div className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <div className="min-w-0 space-y-1">
+                <dt className="font-medium">Coolify dashboard</dt>
+                <dd className="break-all text-muted">{dashboardURL}</dd>
+              </div>
+              <dd><a className="key key-sm inline-flex" href={dashboardURL} target="_blank" rel="noreferrer">Open dashboard</a></dd>
+            </div>
+            <div className="min-w-0 space-y-1 py-3">
+              <dt className="font-medium">Haven’s internal connection</dt>
+              <dd><code className="break-all text-xs">{state.coolify.url || connection.url}</code></dd>
+            </div>
+          </dl>
+          {!state.coolify.url && <div className="flex flex-wrap gap-2">
+            <button className="key key-primary" type="button" onClick={() => setEdit(true)}>Connect Coolify to Haven</button>
+          </div>}
+          <details className="text-sm">
+            <summary className="cursor-pointer text-ink-2">Dashboard not reachable? Use SSH</summary>
+            <p className="mt-2 max-w-2xl text-muted">Run this on your computer, then open <code>http://127.0.0.1:{connectionPort}</code>.</p>
+            <code className="mt-2 block break-all text-xs">ssh -N -L {connectionPort}:127.0.0.1:{connectionPort} YOUR_SSH_USER@{window.location.hostname}</code>
+          </details>
+        </div>}
         {edit && (
           <form className="space-y-4" onSubmit={submit}>
             {!state.coolify.url && <div className="max-w-2xl space-y-1">
               <h3 className="text-base font-semibold">Connect Coolify</h3>
               <p className="text-sm text-ink-2">Use a team token with Read, Write and Deploy permissions.</p>
             </div>}
-            <Field label="Dashboard URL"><input className="field w-full" type="url" required value={connection.url} onChange={(e) => { set('url', e.target.value); setFound(undefined) }} /></Field>
+            <div className="space-y-1.5">
+              <Field label="Haven connection URL"><input className="field w-full" type="url" required value={connection.url} onChange={(e) => { set('url', e.target.value); setFound(undefined) }} /></Field>
+              <p className="text-xs text-muted">Same-server default: <code>http://127.0.0.1:8000</code></p>
+            </div>
             <TokenField id="coolify-api-token" label="Coolify API token" value={token} change={setToken} />
             {found && <>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -162,9 +204,7 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
                 {found.environments !== null && <PickResource label="Environment UUID" value={connection.environment} options={found.environments} change={(v) => set('environment', v)} />}
                 {found.destinations !== null && <PickResource label="Destination UUID (optional)" value={connection.destination || ''} options={found.destinations} change={(v) => set('destination', v)} optional />}
               </div>
-              <p className="text-sm text-muted">{resourcesReady
-                ? `Coolify ${found.version} resources are ready to save.`
-                : `Coolify ${found.version} responded. Choose a server and project, then reload.`}</p>
+              {!resourcesReady && <p className="text-sm text-muted">Choose a server and project, then reload.</p>}
             </>}
             <div className="flex flex-wrap gap-2">
               <button className={found ? 'key' : 'key key-primary'} type="button" disabled={busy || !connection.url || !token} data-loading={busy && !resourcesReady} onClick={discover}>{found ? 'Reload resources' : 'Load resources'}</button>
@@ -172,7 +212,7 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
             </div>
           </form>
         )}
-        {!state.coolify.url && !edit && (
+        {!state.coolify.url && !edit && !coolifyRunning && (
           <div className="space-y-5">
             <div className="max-w-2xl space-y-1">
               <p className="flex items-center gap-2 text-sm"><Led s="off" /> Coolify is not connected</p>
@@ -189,7 +229,7 @@ function CoolifySetup({ state, refresh }: { state: HostingState; refresh: () => 
               <div className="flex h-full flex-col gap-3 py-4 sm:pl-5">
                 <div className="space-y-1">
                   <h4 className="font-semibold">Connect an existing installation</h4>
-                  <p className="text-sm text-ink-2">Connect with its dashboard URL and API token.</p>
+                  <p className="text-sm text-ink-2">Connect with its API token.</p>
                 </div>
                 <div className="mt-auto pt-1"><button className="key" type="button" disabled={busy} onClick={() => setEdit(true)}>Connect existing Coolify</button></div>
               </div>
@@ -507,6 +547,7 @@ export default function HostingPage() {
   const { repo } = useHaven()
   const { data: state, error, refresh } = usePoll(hostingApi.status, 5000)
   const guide = repoUrl(repo, '/blob/main/docs/WEBSITE_HOSTING_GUIDE.md') || 'https://github.com/NaveenKharwar/Haven/blob/main/docs/WEBSITE_HOSTING_GUIDE.md'
+  const dashboard = state ? coolifyDashboardURL(state.coolify.url) : ''
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -532,12 +573,12 @@ export default function HostingPage() {
           )}
           {state.coolify.url && (
             <Sections>
-              <Plate title="Your websites" tools={<CoolifyLink dashboard={state.coolify.url} />}>
+              <Plate title="Your websites" tools={<CoolifyLink dashboard={dashboard} />}>
                 {!state.sites.length && <p className="p-4 text-sm text-muted sm:p-5">Choose a platform to install your first private website.</p>}
                 <ul className="divide-y divide-rule">{state.sites.map((site) => <SiteRow key={site.id} site={site} state={state} refresh={refresh} />)}</ul>
                 {!!state.sites.length && <div className="border-t border-rule p-4 text-sm text-muted sm:p-5">Manage database and storage backups in Coolify. Restore both privately before publishing again.</div>}
               </Plate>
-              {state.enabled && <HostingCatalog dashboard={state.coolify.url} refresh={refresh} />}
+              {state.enabled && <HostingCatalog dashboard={dashboard} refresh={refresh} />}
             </Sections>
           )}
         </>

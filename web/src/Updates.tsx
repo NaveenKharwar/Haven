@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, Copy, RefreshCw } from 'lucide-react'
 import { api, type AppUpdate, type ImgStatus } from './api'
-import { AppIcon, Led, Spinner, cx, toast, usePoll } from './components'
+import { AppIcon, Led, Spinner, StatusLine, cx, toast, usePoll } from './components'
 import { useHaven } from './context'
 import { copyText } from './diagnosis'
 import HavenUpdateCard from './selfupdate'
@@ -132,9 +132,7 @@ export default function UpdatesPage() {
       {havenCard}
 
       {data?.lastError && (
-        <p role="alert" className="plate flex items-center gap-3 border-warn px-4 py-3 text-sm">
-          <Led s="warn" /> {data.lastError}
-        </p>
+        <StatusLine tone="warn" className="plate border-warn px-4 py-3">{data.lastError}</StatusLine>
       )}
 
       {withUpdates.length > 0 && (

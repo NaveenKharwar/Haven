@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowUpRight, CircleArrowUp, Play, RotateCw, ScrollText, Square, Trash2, X } from 'lucide-react'
 import { api, appUrl, atLeast, containerLed, formatBytes, ledState, statusWord, type Container, type InstalledApp, type Setting } from './api'
-import { AppIcon, Drawer, Led, LogBox, Modal, Notice, Spinner, cx, toast } from './components'
+import { AppIcon, Drawer, ErrorLine, Led, LogBox, Modal, Notice, Spinner, cx, toast } from './components'
 import { useHaven } from './context'
 import { UsageCells, cpuText, diskText, fmtCpu, memText } from './usage'
 import { SettingField } from './Store'
@@ -48,9 +48,7 @@ export default function AppsPage() {
       </div>
 
       {dockerError && (
-        <p role="alert" className="plate flex items-center gap-3 border-bad px-4 py-3 text-sm">
-          <Led s="bad" /> Docker isn't responding: {dockerError}
-        </p>
+        <ErrorLine className="plate border-bad px-4 py-3">Docker isn't responding: {dockerError}</ErrorLine>
       )}
 
       {!appsReady && <div className="plate h-48 bg-well" aria-hidden />}
@@ -229,7 +227,7 @@ function LogsView({ load }: { load: () => Promise<string> }) {
     const t = setInterval(refresh, 4000)
     return () => clearInterval(t)
   }, [refresh])
-  if (error) return <p className="text-sm text-bad">{error}</p>
+  if (error) return <ErrorLine>{error}</ErrorLine>
   if (!lines) return <Spinner />
   return <LogBox lines={lines} className="h-[60vh]" />
 }
@@ -602,6 +600,6 @@ function DiagnoseTab({ id }: { id: string }) {
   useEffect(() => {
     run()
   }, [run])
-  if (error) return <p className="text-sm text-bad">{error}</p>
+  if (error) return <ErrorLine>{error}</ErrorLine>
   return <DiagnosisView d={running && !d ? null : d} running={running} onRun={run} />
 }

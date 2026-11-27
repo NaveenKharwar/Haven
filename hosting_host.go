@@ -37,6 +37,34 @@ type hostingCheck struct {
 	Action      string `json:"action,omitempty"`
 }
 
+type coolifyInstallation struct {
+	Status string `json:"status"`
+}
+
+func detectCoolifyInstallation(envFile bool, containers []Container) coolifyInstallation {
+	installed := envFile
+	running := false
+	for _, c := range containers {
+		installed = installed || c.Name == "coolify" || c.Project == "coolify"
+		if c.Name == "coolify" && c.State == "running" {
+			running = true
+		}
+	}
+	if running {
+		return coolifyInstallation{Status: "running"}
+	}
+	if installed {
+		return coolifyInstallation{Status: "partial"}
+	}
+	return coolifyInstallation{Status: "not-installed"}
+}
+
+func (h *Hosting) coolifyInstallation(ctx context.Context) coolifyInstallation {
+	_, err := os.Stat("/data/coolify/source/.env")
+	containers, _ := h.docker.ListContainers(ctx)
+	return detectCoolifyInstallation(!errors.Is(err, os.ErrNotExist), containers)
+}
+
 func (h *Hosting) setupChecks(ctx context.Context) []hostingCheck {
 	v, err := h.docker.Version(ctx)
 	_, composeErr := h.docker.ComposeVersion(ctx)
@@ -75,16 +103,9 @@ func (h *Hosting) setupChecks(ctx context.Context) []hostingCheck {
 	}
 	_, installErr := os.Stat("/data/coolify/source/.env")
 	containers, _ := h.docker.ListContainers(ctx)
-	installed := !errors.Is(installErr, os.ErrNotExist)
-	running := false
-	for _, c := range containers {
-		installed = installed || c.Name == "coolify" || c.Project == "coolify"
-		if c.Name == "coolify" {
-			if info, inspectErr := h.inspectContainer(ctx, "coolify"); inspectErr == nil && info.State.Running {
-				running = true
-			}
-		}
-	}
+	installation := detectCoolifyInstallation(!errors.Is(installErr, os.ErrNotExist), containers)
+	installed := installation.Status != "not-installed"
+	running := installation.Status == "running"
 	existingInfo := "No existing Coolify installation was detected."
 	existingDetails := "A second Coolify installation would conflict with the existing containers, networks and ports."
 	existingFix := "Use Connect an existing installation if Coolify is running."
@@ -92,9 +113,11 @@ func (h *Hosting) setupChecks(ctx context.Context) []hostingCheck {
 		existingInfo = "A partial Coolify installation was found. Review it, then use Resume installation to rerun the pinned installer safely."
 		existingFix = "Review the other checks, then choose Review installation recovery to resume without deleting Coolify data."
 	} else if running {
-		existingInfo = "Connect the existing running installation in Hosting instead of installing another copy."
+		existingInfo = "Coolify is installed and running. Connect it to Haven instead of installing another copy."
+		existingDetails = "The running Coolify stack is ready for account setup, API access and connection to Haven."
+		existingFix = "Open the Coolify dashboard, finish its setup, create an API token, then connect it to Haven."
 	}
-	checks = append(checks, hostingCheck{Name: "Existing Coolify", OK: !installed, Recoverable: installed && !running, Info: existingInfo, Details: existingDetails, Fix: existingFix})
+	checks = append(checks, hostingCheck{Name: "Existing Coolify", OK: !installed || running, Recoverable: installed && !running, Info: existingInfo, Details: existingDetails, Fix: existingFix})
 	havenPort80 := h.store.Settings().Port80
 	for _, port := range []int{80, 443, 6001, 6002, 8000} {
 		free := portFree(port, "tcp")
@@ -105,18 +128,25 @@ func (h *Hosting) setupChecks(ctx context.Context) []hostingCheck {
 				break
 			}
 		}
-		checks = append(checks, hostingPortCheck(port, free, havenPort80, installed && !running && coolifyOwnsPort))
+		checks = append(checks, hostingPortCheck(port, free, havenPort80, installed && !running && coolifyOwnsPort, running && coolifyOwnsPort))
 	}
 	return checks
 }
 
-func hostingPortCheck(port int, free, havenPort80, coolifyRecoverable bool) hostingCheck {
+func hostingPortCheck(port int, free, havenPort80, coolifyRecoverable, coolifyRunning bool) hostingCheck {
 	check := hostingCheck{
 		Name: fmt.Sprintf("TCP %d", port), OK: free, Info: "Must be available for a new Coolify installation.",
 		Details: fmt.Sprintf("Coolify needs exclusive access to TCP %d for its proxy or control services.", port),
 		Fix:     fmt.Sprintf("Find the listener with `sudo ss -ltnp '( sport = :%d )'`, then stop or reconfigure that service before rerunning the checks.", port),
 	}
 	if free {
+		return check
+	}
+	if coolifyRunning {
+		check.OK = true
+		check.Info = "This port belongs to the running Coolify installation."
+		check.Details = "The existing Coolify stack is expected to own this port; it is not an installation problem."
+		check.Fix = ""
 		return check
 	}
 	if port == 80 && havenPort80 {
@@ -142,6 +172,9 @@ func dockerLoopbackSafe(version string) bool {
 }
 
 func (h *Hosting) installCoolify(ctx context.Context, j *Job, recover bool) error {
+	if h.coolifyInstallation(ctx).Status == "running" {
+		return errors.New("Coolify is already installed and running. Connect it to Haven instead of installing another copy.")
+	}
 	for _, check := range h.setupChecks(ctx) {
 		if !check.OK && !(recover && check.Recoverable) {
 			return fmt.Errorf("%s preflight failed. %s", check.Name, check.Info)
