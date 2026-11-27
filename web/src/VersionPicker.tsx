@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { LoaderCircle, Check, AlertCircle } from 'lucide-react'
 import { api, type VersionInfo } from './api'
-import { Led, cx } from './components'
+import { StatusLine, cx } from './components'
 
 const DOCKER_TAG_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/
 
@@ -333,20 +333,11 @@ export function VersionPicker({
                 Matching tag with container registry…
               </p>
             ) : !checkState.valid && checkState.message ? (
-              <p className="flex items-center gap-1.5 text-bad">
-                <Led s="bad" />
-                <span>{checkState.message}</span>
-              </p>
+              <StatusLine tone="bad" size="inherit">{checkState.message}</StatusLine>
             ) : checkState.warning ? (
-              <p className="flex items-center gap-1.5 text-warn">
-                <Led s="warn" />
-                <span>{checkState.warning}</span>
-              </p>
+              <StatusLine tone="warn" size="inherit">{checkState.warning}</StatusLine>
             ) : customInput.trim() ? (
-              <p className="flex items-center gap-1.5 text-ok">
-                <Led s="ok" />
-                <span>Tag exists in registry ({customInput.trim()})</span>
-              </p>
+              <StatusLine tone="ok" size="inherit">Tag exists in registry ({customInput.trim()})</StatusLine>
             ) : (
               <p className="text-muted">Enter any published image tag from the upstream registry.</p>
             )}

@@ -114,17 +114,32 @@ export function Notice({ label, children }: { label: string; children: ReactNode
   )
 }
 
-/** An inline error, led by a red LED. */
-export function ErrorLine({ children, className }: { children: ReactNode; className?: string }) {
+/** A status message whose LED stays aligned with the first line at any length. */
+export function StatusLine({ children, tone, className, size = 'sm' }: {
+  children: ReactNode
+  tone: 'ok' | 'warn' | 'bad' | 'busy' | 'off'
+  className?: string
+  size?: 'sm' | 'inherit'
+}) {
   if (!children) return null
   return (
-    <p role="alert" className={cx('flex items-start gap-2 text-sm text-bad', className)}>
-      <span className="mt-[0.4em]">
-        <Led s="bad" />
+    <div role={tone === 'bad' ? 'alert' : 'status'} className={cx(
+      'grid min-w-0 grid-cols-[0.5rem_minmax(0,1fr)] gap-x-2.5',
+      size === 'sm' && 'text-sm',
+      tone === 'bad' ? 'text-bad' : tone === 'warn' ? 'text-warn' : tone === 'ok' ? 'text-ok' : 'text-muted',
+      className,
+    )}>
+      <span className="flex h-[1.4em] items-center" aria-hidden>
+        <Led s={tone} />
       </span>
       <span className="min-w-0 whitespace-pre-wrap break-words">{children}</span>
-    </p>
+    </div>
   )
+}
+
+/** An inline error, led by a red LED. */
+export function ErrorLine({ children, className, size }: { children: ReactNode; className?: string; size?: 'sm' | 'inherit' }) {
+  return <StatusLine tone="bad" className={className} size={size}>{children}</StatusLine>
 }
 
 export function Spinner({ size = 16 }: { size?: number }) {

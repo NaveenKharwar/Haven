@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { api, appUrl, formatBytes, ledState, statusWord, type AuthStatus, type CatalogApp, type InstalledApp, type Check } from '../api'
-import { AppIcon, Led, LogBox, Readout, Spinner, cx, useClock, useJob, usePoll } from '../components'
+import { AppIcon, ErrorLine, Led, LogBox, Readout, Spinner, StatusLine, cx, useClock, useJob, usePoll } from '../components'
 import { exitTv, focusDefault, focusEl, useSpatialNav } from './spatial'
 import { cpuText, diskText, isLive, memText } from '../usage'
 import { BackdropLayer, useBackground } from '../bg'
@@ -149,7 +149,7 @@ function TvPair({ onDone }: { onDone: () => void }) {
         <div className="plate p-[2em]">
           <div className="etch mb-[1.2em] text-[0.7em]">Pairing code</div>
           {error ? (
-            <p className="text-[1.1em] text-bad">{error}</p>
+            <ErrorLine className="text-[1.1em]" size="inherit">{error}</ErrorLine>
           ) : (
             <div className="flex items-center gap-[0.35em]" aria-live="polite">
               {(pair?.code || '------').split('').map((ch, i) =>
@@ -208,7 +208,7 @@ function TvPasswordLogin({ onDone, onCancel }: { onDone: () => void; onCancel: (
           Password
         </label>
         <input id="tv-pw" className="field" data-nav type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
-        {error && <p className="text-bad">{error}</p>}
+        <ErrorLine size="inherit">{error}</ErrorLine>
         <div className="mt-[0.6em] flex gap-[0.8em]">
           <button className="key key-primary" data-nav disabled={busy}>
             Sign in
@@ -454,7 +454,7 @@ function TvAppSheet({ app, onClose, onJob }: { app?: InstalledApp; onClose: () =
         ))}
       </div>
       {app.updateAvailable && <p className="mt-[1em] text-accent">Version {app.updateAvailable} is available.</p>}
-      {error && <p className="mt-[1em] text-bad">{error}</p>}
+      <ErrorLine className="mt-[1em]" size="inherit">{error}</ErrorLine>
       <div className="mt-[1.8em] flex flex-wrap gap-[0.8em]">
         {url && (
           <button className="key key-primary" data-nav data-nav-default onClick={() => window.location.assign(url)}>
@@ -534,7 +534,7 @@ function TvInstallSheet({ app, onClose, onJob }: { app: CatalogApp; onClose: () 
       </div>
       <p className="mt-[1.2em] max-w-[40em] text-ink-2">{app.description}</p>
       {blocked ? (
-        <div className="mt-[1.2em] flex items-start gap-[0.6em] text-warn"><span className="mt-[0.45em]"><Led s="warn" /></span>This app needs a few details, like a password. Install it from your phone or computer.</div>
+        <StatusLine tone="warn" className="mt-[1.2em]" size="inherit">This app needs a few details, like a password. Install it from your phone or computer.</StatusLine>
       ) : (
         <div className="mt-[1.2em] font-mono text-[0.8em]">
           {!checks && !error && (
@@ -543,18 +543,14 @@ function TvInstallSheet({ app, onClose, onJob }: { app: CatalogApp; onClose: () 
             </span>
           )}
           {checks && fails.length === 0 && (
-            <span className="flex items-center gap-[0.6em] text-ok">
-              <Led s="ok" /> Self-test passed. Installs with default settings.
-            </span>
+            <StatusLine tone="ok" size="inherit">Self-test passed. Installs with default settings.</StatusLine>
           )}
           {fails.map((c, i) => (
-            <div key={i} className="flex items-start gap-[0.6em] text-bad">
-              <Led s="bad" /> {c.name}: {c.message}
-            </div>
+            <ErrorLine key={i} size="inherit">{c.name}: {c.message}</ErrorLine>
           ))}
         </div>
       )}
-      {error && <p className="mt-[1em] text-bad">{error}</p>}
+      <ErrorLine className="mt-[1em]" size="inherit">{error}</ErrorLine>
       <div className="mt-[1.8em] flex gap-[0.8em]">
         {!blocked && (
           <button className="key key-primary" data-nav data-nav-default disabled={!checks || fails.length > 0} onClick={install}>
@@ -584,7 +580,7 @@ function TvJob({ id, title, onClose }: { id: string; title: string; onClose: () 
           {title} · {running ? 'working' : job?.status === 'success' ? 'done' : 'failed'}
         </h2>
       </div>
-      {job?.status === 'failed' && job.error && <p className="mb-[1em] text-bad">{job.error}</p>}
+      {job?.status === 'failed' && <ErrorLine className="mb-[1em]" size="inherit">{job.error}</ErrorLine>}
       <LogBox lines={(job?.log || []).slice(-60)} className="h-[16em] text-[0.75em]" />
       <div className="mt-[1.4em] flex gap-[0.8em]">
         <button ref={doneRef} className={cx('key', !running && 'key-primary')} data-nav data-nav-default onClick={onClose}>

@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef, useState } from 'react'
 import { Check, ChevronLeft, ChevronRight, Eye, EyeOff, GripVertical, LayoutGrid, RotateCcw, Cloud, CloudDrizzle, CloudFog, CloudHail, CloudLightning, CloudMoon, CloudRain, CloudSnow, CloudSun, Moon, Sun, type LucideIcon } from 'lucide-react'
 import { announceUIChange, api, atLeast, formatMoney, formatNumber, timeAgo, type CurrencyData, type NetTest, type News, type NewsItem, type Quote, type Weather, type WidgetData } from './api'
-import { Led, Modal, Spinner, Trace, cx, usePoll } from './components'
+import { ErrorLine, Led, Modal, Spinner, Trace, cx, usePoll } from './components'
 import { QR } from './diagnosis'
 import { Ctx } from './context'
 import { Widget } from './widgetshell'
@@ -108,7 +108,7 @@ function ConnectionTest({ host, onClose }: { host: string; onClose: () => void }
             <Spinner /> Testing step by step. This can take up to half a minute.
           </div>
         )}
-        {err && <p className="text-bad">{err}</p>}
+        <ErrorLine>{err}</ErrorLine>
         {res && (
           <div className="space-y-4">
             <ol className="well divide-y divide-rule-2">
@@ -571,7 +571,7 @@ export function WidgetBoard({ data }: { data: WidgetData | null }) {
             <button className="key key-sm" disabled={saving} onClick={closeEditor}>Cancel</button>
             <button ref={saveButton} className="key key-sm key-primary" disabled={saving} onClick={save}><Check size={13} /> {saving ? 'Saving…' : 'Save layout'}</button>
           </div>
-          {error && <p role="alert" className="basis-full text-xs text-bad">{error}</p>}
+          <ErrorLine className="basis-full text-xs" size="inherit">{error}</ErrorLine>
           <span className="sr-only" role="status">{announcement}</span>
         </div>
       ) : (

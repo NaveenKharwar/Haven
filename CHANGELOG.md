@@ -5,6 +5,7 @@ Each release's notes come from its section here. Add a `## <version>` section be
 ## Unreleased
 
 - Added a dedicated running-Coolify Hosting state that hides new-install checks, separates the browser dashboard address from Haven's internal loopback connection, and prevents duplicate installation at the backend.
+- Standardized inline error and status messages so their indicators align with both single-line and wrapped text across the dashboard and TV interface.
 
 ## 0.1.40
 

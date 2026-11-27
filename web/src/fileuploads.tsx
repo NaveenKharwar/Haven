@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { RotateCw, X } from 'lucide-react'
 import { api, ApiError, formatBytes } from './api'
+import { ErrorLine } from './components'
 
 type Transfer = {
   id: string
@@ -101,9 +102,9 @@ export function UploadQueue({ queue, path }: { queue: ReturnType<typeof useFileU
               <div className="min-w-0 flex-1">
                 <p className="break-words text-sm font-medium">{item.file.name}</p>
                 {item.path !== path && <p className="break-all text-xs text-muted">{item.path}</p>}
-                <p role={failed ? 'status' : undefined} className={failed ? 'break-words text-xs text-bad' : 'text-xs text-muted'}>
-                  {failed ? item.error : item.status === 'waiting' ? 'Queued' : item.bytes >= item.file.size ? 'Saving to folder…' : `${percent}% · ${formatBytes(item.bytes)} of ${formatBytes(item.file.size)}`}
-                </p>
+                {failed
+                  ? <ErrorLine className="mt-1 text-xs" size="inherit">{item.error}</ErrorLine>
+                  : <p className="text-xs text-muted">{item.status === 'waiting' ? 'Queued' : item.bytes >= item.file.size ? 'Saving to folder…' : `${percent}% · ${formatBytes(item.bytes)} of ${formatBytes(item.file.size)}`}</p>}
                 {item.status === 'uploading' && <progress className="file-progress mt-2 block h-1 w-full" value={item.bytes} max={item.file.size || 1} aria-label={`Uploading ${item.file.name}`} />}
               </div>
               {failed && (
