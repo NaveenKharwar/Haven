@@ -4,6 +4,8 @@ Each release's notes come from its section here. Add a `## <version>` section be
 
 ## Unreleased
 
+## 0.1.41
+
 - Removed Coolify's external Docker network during full uninstall so no Coolify runtime resources remain.
 - Replaced bare `haven` foreground startup with a structured Cobra CLI, explicit service lifecycle and log commands, visible experimental-feature commands, shell completion, and an explicit `haven serve` mode while preserving legacy service flags.
 - Added a dedicated running-Coolify Hosting state that hides new-install checks, separates the browser dashboard address from Haven's internal loopback connection, and prevents duplicate installation at the backend.
