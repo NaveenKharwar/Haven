@@ -5,7 +5,7 @@ import {
   api, hostingApi, type HostingConnection, type HostingDiscovery, type HostingHealth, type HostingResource,
   type HostingReview, type HostingSite, type HostingState, type HostingTemplate,
 } from './api'
-import { ErrorLine, Led, Modal, Notice, Sections, Spinner, usePoll } from './components'
+import { ErrorLine, Led, Modal, Notice, Spinner, cx, usePoll } from './components'
 import { useHaven } from './context'
 
 function Plate({ title, tools, children }: { title: string; tools?: ReactNode; children: ReactNode }) {
@@ -574,11 +574,44 @@ function SiteRow({ site, state, refresh }: { site: HostingSite; state: HostingSt
   )
 }
 
+const HOSTING_TABS = [
+  ['coolify', 'Coolify', 'Manage the deployment engine and its connection to Haven'],
+  ['cloudflare', 'Cloudflare', 'Connect domains, DNS and secure public tunnels'],
+  ['websites', 'Websites', 'Check, publish and recover Haven-managed websites'],
+  ['catalog', 'Sites & apps', 'Install a private site or open Coolify for custom deployments'],
+] as const
+type HostingTab = (typeof HOSTING_TABS)[number][0]
+
 export default function HostingPage() {
   const { repo } = useHaven()
   const { data: state, error, refresh } = usePoll(hostingApi.status, 5000)
+  const [tab, setTab] = useState<HostingTab>(() => {
+    try {
+      const saved = sessionStorage.getItem('haven-hosting-tab')
+      return HOSTING_TABS.some(([id]) => id === saved) ? (saved as HostingTab) : 'coolify'
+    } catch {
+      return 'coolify'
+    }
+  })
+  const pick = (id: HostingTab) => {
+    setTab(id)
+    try {
+      sessionStorage.setItem('haven-hosting-tab', id)
+    } catch {
+      /* storage blocked */
+    }
+  }
   const guide = repoUrl(repo, '/blob/main/docs/WEBSITE_HOSTING_GUIDE.md') || 'https://github.com/NaveenKharwar/Haven/blob/main/docs/WEBSITE_HOSTING_GUIDE.md'
   const dashboard = state ? coolifyDashboardURL(state.coolify.url) : ''
+  const tabs = state ? HOSTING_TABS.filter(([id]) => {
+    if (id === 'coolify') return state.enabled || !!state.coolify.url
+    if (id === 'cloudflare') return state.enabled
+    return !!state.coolify.url && (id !== 'catalog' || state.enabled)
+  }) : []
+  useEffect(() => {
+    if (tabs.length && !tabs.some(([id]) => id === tab)) pick(tabs[0][0])
+  }, [state, tab])
+  const current = HOSTING_TABS.find(([id]) => id === tab)!
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -587,7 +620,7 @@ export default function HostingPage() {
             <h1 className="text-2xl font-semibold tracking-tight">Website and App Hosting</h1>
             <span className="tag tag-warn">Experimental</span>
           </div>
-          <p className="mt-1 max-w-3xl text-sm text-muted">Install private sites with Coolify and publish them when ready.</p>
+          <p className="mt-1 max-w-3xl text-sm text-muted">{current[2]}.</p>
         </div>
         <a className="key shrink-0 gap-2" href={guide} target="_blank" rel="noreferrer noopener"><BookOpen size={15} aria-hidden /> Beginner guide</a>
       </header>
@@ -596,22 +629,26 @@ export default function HostingPage() {
       {state && (
         <>
           {!state.enabled && <Notice label="Hosting is off">Run <code className="break-all">sudo haven experimental</code> on the server and enable Website and App Hosting.</Notice>}
-          {(state.enabled || !!state.coolify.url) && (
-            <Sections>
-              <CoolifySetup state={state} refresh={refresh} />
-              {state.enabled && <CloudflareSetup state={state} refresh={refresh} />}
-            </Sections>
-          )}
-          {state.coolify.url && (
-            <Sections>
+          {!!tabs.length && <div className="well inline-flex max-w-full gap-0.5 overflow-x-auto p-0.5" role="tablist" aria-label="Hosting sections">
+            {tabs.map(([id, label]) => (
+              <button id={`hosting-tab-${id}`} key={id} role="tab" aria-selected={tab === id} aria-controls={`hosting-panel-${id}`} onClick={() => pick(id)} className={cx('key key-sm shrink-0 gap-2 border-transparent', tab !== id && 'key-flat')}>
+                <span className={cx('h-1.5 w-1.5 rounded-full', tab === id ? 'bg-accent' : 'bg-unlit')} />
+                {label}
+              </button>
+            ))}
+          </div>}
+          {!!tabs.length && <div id={`hosting-panel-${tab}`} role="tabpanel" aria-labelledby={`hosting-tab-${tab}`}>
+            {tab === 'coolify' && <CoolifySetup state={state} refresh={refresh} />}
+            {tab === 'cloudflare' && state.enabled && <CloudflareSetup state={state} refresh={refresh} />}
+            {tab === 'websites' && state.coolify.url && (
               <Plate title="Your websites" tools={<CoolifyLink dashboard={dashboard} />}>
                 {!state.sites.length && <p className="p-4 text-sm text-muted sm:p-5">Choose a platform to install your first private website.</p>}
                 <ul className="divide-y divide-rule">{state.sites.map((site) => <SiteRow key={site.id} site={site} state={state} refresh={refresh} />)}</ul>
                 {!!state.sites.length && <div className="border-t border-rule p-4 text-sm text-muted sm:p-5">Manage database and storage backups in Coolify. Restore both privately before publishing again.</div>}
               </Plate>
-              {state.enabled && <HostingCatalog dashboard={dashboard} refresh={refresh} />}
-            </Sections>
-          )}
+            )}
+            {tab === 'catalog' && state.enabled && state.coolify.url && <HostingCatalog dashboard={dashboard} refresh={refresh} />}
+          </div>}
         </>
       )}
     </div>
