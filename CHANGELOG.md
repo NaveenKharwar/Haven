@@ -4,6 +4,8 @@ Each release's notes come from its section here. Add a `## <version>` section be
 
 ## Unreleased
 
+## 0.1.43
+
 - Organized Hosting into focused Coolify, Cloudflare, Websites, and Sites & apps tabs, and made removal recover when a website's Coolify service is already missing.
 
 ## 0.1.42
