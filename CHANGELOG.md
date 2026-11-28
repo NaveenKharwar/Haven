@@ -4,6 +4,8 @@ Each release's notes come from its section here. Add a `## <version>` section be
 
 ## Unreleased
 
+- Organized Hosting into focused Coolify, Cloudflare, Websites, and Sites & apps tabs, and made removal recover when a website's Coolify service is already missing.
+
 ## 0.1.42
 
 - Updated the Hosting integration to Coolify 4.7.9 and disabled automatic Coolify updates for new Haven-managed installations so they stay on the tested release.

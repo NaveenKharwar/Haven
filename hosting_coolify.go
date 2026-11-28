@@ -53,6 +53,11 @@ func (e hostingProviderError) Error() string {
 	}
 }
 
+func hostingProviderStatus(err error, status int) bool {
+	var providerErr hostingProviderError
+	return errors.As(err, &providerErr) && providerErr.status == status
+}
+
 func hostingJSON(ctx context.Context, client *http.Client, provider, method, endpoint, token string, body, result any) error {
 	var input io.Reader
 	if body != nil {
@@ -317,9 +322,16 @@ func (c coolifyClient) remove(ctx context.Context, site hostingSite) error {
 		}
 	}
 	if _, _, err := c.service(ctx, site); err != nil {
+		if hostingProviderStatus(err, http.StatusNotFound) {
+			return nil
+		}
 		return err
 	}
-	return c.call(ctx, http.MethodDelete, "/services/"+site.ServiceID+"?delete_configurations=true&delete_volumes=true&docker_cleanup=true&delete_connected_networks=true", nil, nil)
+	err := c.call(ctx, http.MethodDelete, "/services/"+site.ServiceID+"?delete_configurations=true&delete_volumes=true&docker_cleanup=true&delete_connected_networks=true", nil, nil)
+	if hostingProviderStatus(err, http.StatusNotFound) {
+		return nil
+	}
+	return err
 }
 
 func (c coolifyClient) resourceCount(ctx context.Context) (int, error) {
