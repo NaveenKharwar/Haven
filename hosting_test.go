@@ -170,6 +170,33 @@ func TestHostingRemovePendingSiteWithoutCoolifyService(t *testing.T) {
 	}
 }
 
+func TestHostingRemoveSiteForgetsMissingCoolifyService(t *testing.T) {
+	store, err := LoadStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := newHosting(store, nil, &Docker{})
+	site := hostingSite{ID: "missing-site", Name: "Missing site", Template: "static-html", ServiceID: "missing-service"}
+	state := hostingState{Coolify: hostingConnection{URL: "https://coolify.example.com"}, Sites: []hostingSite{site}}
+	if err := h.save(state); err != nil {
+		t.Fatal(err)
+	}
+	h.http = &http.Client{Transport: hostingTestTransport(func(r *http.Request) (int, any) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/services/missing-service" {
+			t.Fatalf("unexpected Coolify request: %s %s", r.Method, r.URL.Path)
+		}
+		return http.StatusNotFound, nil
+	})}
+	keys := hostingSecrets{Coolify: "coolify-token", CoolifyOrigin: state.Coolify.URL}
+	if err := h.removeSite(context.Background(), &Job{}, state, keys, &site); err != nil {
+		t.Fatal(err)
+	}
+	saved, _, err := h.load()
+	if err != nil || len(saved.Sites) != 0 {
+		t.Fatalf("missing Coolify service left a Haven record: state=%+v err=%v", saved, err)
+	}
+}
+
 func TestHostingUninstallChecksResourcesAndRemovesOnlyChosenRoot(t *testing.T) {
 	store, err := LoadStore(t.TempDir())
 	if err != nil {
